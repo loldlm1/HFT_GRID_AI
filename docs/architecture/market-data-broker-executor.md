@@ -1,27 +1,26 @@
-# H1/M10 Pivot Collector And Broker Executor
+# Pivot Macro Collector And Broker Executor
 
 ## Purpose
 
-The EA owns one deterministic market-data boundary: classic pivot ladders from
-previous completed broker candles, immutable H1 and nested M10 research facts,
-and one structural H1 `1R` broker lane. It is not a generic strategy, grid,
-licensing, risk-dashboard, model-serving, or multi-leg execution framework.
+The Pivot EA owns causal Macro pivot discovery, eight virtual Macro lanes and one
+structural 1R broker lane. Shared capture supplies features and dataset facts;
+engine-specific code retains order ownership and lifecycle decisions.
 
-The EA property version is `1.40`; the export schema is separately versioned as
-`14`, with signal source `PIVOT_FRACTAL_V2`. See the [current index](../README.md)
-for source/compile pins and open operational gates.
+`HFT_Grid_AI.mq5` is version `2.00`, engine `PIVOT_MACRO_V1`, common schema `1`.
+The [shared contract](model-feature-dataset.md) owns headers, features and clocks;
+the [current index](../README.md) owns source/compile pins and acceptance gates.
 
-This document governs the Pivot EA. The separate `Candle_Pattern_Discovery.mq5`
-has its own [Candle runtime and dataset contract](../../tools/candle_pattern_ml/README.md):
-Micro pattern signals, Macro/Micro features, fixed ATR protection, both broker
-directions, one confirmed-SL re-entry and per-entry Macro-duration expiry.
-It does not include the Pivot engine's aggregators or share its strategy state.
+The separate `Candle_Pattern_Discovery.mq5` is version `2.00`, engine
+`CANDLE_PATTERN_ATR_V2`. It shares capture services but retains Micro patterns,
+ATR stops, both broker directions, one confirmed-SL re-entry and per-entry
+Macro-duration expiry. Its engine policy is in the shared contract. Historical
+Candle and Pivot readers retain their original identities.
 
 ## Public Inputs
 
 | Group | Inputs and defaults |
 | --- | --- |
-| `+= Market Data Time =+` | `Broker_Session=FIXED_TIME_SESSIONS`, `Macro_Timeframe=PERIOD_H1`, `Deep_Timeframe=PERIOD_M10`, `Micro_Timeframe=PERIOD_M3` |
+| `+= Market Data Time =+` | `Broker_Session=FIXED_TIME_SESSIONS`, `Macro_Timeframe=PERIOD_H1`, `Micro_Timeframe=PERIOD_M3` |
 | `+= Broker Execution =+` | `Lot_Type=EXECUTION_LOT_REFERENCE_BALANCE_PERCENT`, `Lot_Strategy_Size=0.01` |
 | `+= Signal Statistics Export =+` | `Enable_Signal_Feature_Export=false`, `Signal_Feature_Run_Id=""` |
 | `+= Developer Debug Settings =+` | `Enable_Logs=false`, `Enable_File_Logs=false` |
@@ -40,43 +39,36 @@ actual broker trading sessions still gate the real order.
 ## Runtime Ownership
 
 ```text
-broker tick
--> reconcile the one real structural H1 1R lane
+broker tick -> observe shared Macro context and closed/live M1 structure
+-> reconcile the real structural Macro 1R lane
 -> refresh causal Macro context on bar change or bounded data retry
--> resolve H1 virtual first touches and midpoint state
--> discover H1 live-Bid pivot identities
--> capture Macro/Deep features against each origin's touched pivot
--> perform fresh broker checks and submit at most one FOK structural request
--> resolve/censor active deep parent links
--> freeze eligible active H1 parents in both directions
--> refresh the causal Deep window while eligible parents exist
--> discover one shared M10 event per consumed deep identity
--> capture one Deep/Micro snapshot and shared deep 1R/2R/3R geometry
--> serialize strict V14 facts
+-> resolve virtual first touches and midpoint state
+-> discover direction-independent live-Bid pivot identities
+-> freeze one Macro/Micro feature snapshot per origin
+-> perform fresh broker checks and submit at most one FOK request
+-> serialize common facts through the Pivot adapter
 ```
 
-H1 terminal transitions are processed before same-tick M10 discovery. Research
-state never authorizes, denies, delays, resizes, duplicates, closes, or modifies
-the real broker order.
+Research state never authorizes, denies, resizes, duplicates, closes or modifies
+the real broker order. Feature gaps and dataset errors cannot veto an entry.
 
 ## Timeframes And Windows
 
-`Macro_Timeframe`, `Deep_Timeframe`, and `Micro_Timeframe` are explicit supported
-periods. Initialization validates normalized `PeriodSeconds` ordering:
-`Micro < Deep < Macro`; defaults are `M3 < M10 < H1`. The EA uses broker-native
-active bars and the previous completed source candle (`shift 1`). A current bar
-whose open is later than the observed tick is not causal. Weekend/session gaps
-do not create synthetic windows.
+`Macro_Timeframe` and `Micro_Timeframe` are explicit supported native periods,
+validated through `PeriodSeconds` with `Micro < Macro`; defaults are M3 < H1.
+Generic M10 remains supported. Pivot permits MN1; Candle excludes monthly roles.
+The fixed M1 structure source is independent of these configurable roles.
 
-Each H1 and M10 window retains raw and trade-tick-normalized
-`PP`, `S1..S3`, and `R1..R3` with strict ladder ordering. Window identity and
-trigger ordering are independent of analysis-time display/DST fields.
+Pivots use the previous completed native broker candle, shift 1. A future active
+bar does not invalidate an already causal engine window. Missing data retries
+are bounded; no synthetic bars or wall-clock aggregation replaces broker bars.
+Windows preserve raw and trade-tick-normalized PP, S1..S3 and R1..R3 ladders.
 
-`FIXED_TIME_SESSIONS` preserves analysis timestamps. `EXNESS_SESSION` retains
-broker timestamps and applies the implemented symbol/calendar winter analysis
-adjustment of `-60` minutes. Neither changes source ticks, broker bars, scheduling,
-triggers or orders. The existing custom-symbol session choices are in the current
-index; they do not change the public input default.
+`FIXED_TIME_SESSIONS` preserves analysis timestamps. Explicit `EXNESS_SESSION`
+requires prepared UTC/Shift=0 sources and uses shared `EXNESS_NEW_YORK_V1` for
+all symbols, including metals. Winter analysis time is raw minus 60 minutes;
+summer equals raw. Analysis time never governs triggers, expiry or order sorting.
+Old V14 exports retain their original clock interpretation in their old reader.
 
 ## Pivot Identity And Triggers
 
@@ -107,8 +99,9 @@ MIDPOINT_50 x 1R, 2R, 3R, 5R
 ```
 
 Structural lanes enter at the H1 trigger. The midpoint is the exact halfway
-price from the touched pivot toward its next outward structural stop; its clock
-starts only on the first executable midpoint touch. The shared midpoint remains
+price from the touched pivot toward its next outward structural stop. Bid owns
+the trigger in both directions; buys then enter at Ask and sells at Bid. The
+entry clock starts at that observed touch. The shared midpoint remains
 armed while any structural lane from the origin is active, including after H1
 bar rollover. If the final structural lane exits first, untouched midpoint lanes
 are `NOT_TRIGGERED`; they are not losses. Once touched, midpoint ratios resolve
@@ -125,69 +118,6 @@ The H1/parity active-state cap is `2048`. Run termination censors unresolved
 entered lanes and never reports them as SL losses. R5 has no special midpoint
 controller role; any surviving structural lane keeps the shared pending entry armed.
 
-## Deep M10 Evidence
-
-Deep capture is research-only and requires at least one entered eligible H1
-virtual lane or confirmed broker fill, in either direction. No event is collected
-without an active Macro parent. The event identity is:
-
-```text
-(symbol, Deep_Timeframe, active Deep bar open, level)
-```
-
-One event stores one Deep/Micro indicator vector, and one
-event-level shared trial for each deep ratio `1R`, `2R`, and `3R`. Parent links
-associate the event with every eligible H1 parent active at the trigger. A link
-stores its parent identity, entry time, exact `m10_parent_age_seconds`,
-`parent_direction`, `deep_direction` and `direction_relationship`
-(`ALIGNED`/`OPPOSED`). Outcome `direction` owns Deep execution; outcome
-`parent_direction` resolves the origin. Features are never copied into link/ratio
-rows. H1/M10 identifiers denote roles; the manifest owns their actual periods.
-
-Freeze the active-parent set immediately before discovery. Later entries or fills
-are never linked retroactively; direction is an immutable trigger outcome, not a
-second event identity. Invalid deep geometry remains explicit: it is never
-reflected, stretched or routed to another stop.
-
-The deep path uses the event executable quote and next outward M10 pivot as the
-normalized stop. It never reaches `OrderSend`. A parent exit censors only that
-link as `CENSORED_PARENT_EXIT`; a run stop uses `CENSORED_RUN_END`. The same
-shared trial may resolve normally for another still-active parent. Observation
-ends when no linked parent remains active.
-
-Before broker signal cleanup, confirmed deal close time is retained on its
-existing deep links. Unfinished children use that time for parent-exit censoring,
-including when the run stops after closure. Missing or inconsistent close
-evidence invalidates research integrity without changing broker execution.
-Reconciliation may observe closure later: broker outcomes own the actual close
-clock, while terminal execution checks retain reconciliation time. Observed
-censor quotes remain observation evidence and produce no completed return or
-binary label.
-
-Admission reserves the complete fan-out atomically: one event, all frozen links,
-three trials, and three outcomes per link. If it cannot fit, the event identity
-is consumed and one `CAPACITY_REJECTED` row is emitted with no partial children.
-Caps are 2048 events, 4096 links, 6144 trials, and 18432 outcomes.
-
-Deep outcomes hold checked link/trial/event indices. A bounded pass reconciles
-active counts, and stable compaction releases only whole terminal event groups,
-remapping all retained indices together. Links own frozen parent membership;
-there is no duplicate frozen-parent array. Cached H1/broker slots validate full
-identity before use and fall back to lookup after their owning arrays move.
-Both parent directions are collected in one pass before each discovery batch,
-preserving H1-then-broker order and exact trigger-time ages.
-Eligibility is rechecked every tick. Snapshot storage is reused only when every
-metadata field and source slot still matches; departed parents are truncated
-before discovery. No parent membership is cached without a current eligibility
-check.
-
-Deep quote/touch results are shared by trial only within one resolver invocation.
-The scratch array resets on every invocation, including quotes in the same
-serialized second, and is released on reset/failure. Each parent is checked before
-using that result, so closed parents retain their separate censor path. Successful
-profit calculations may be reused during that invocation; failures retain the
-existing per-parent retry behavior. Compaction happens after all uses of indices.
-
 ## Broker Boundary
 
 Only the structural H1 `1R` lane may send. The fresh pre-send path rechecks
@@ -195,9 +125,9 @@ session, symbol mode, hedging mode, permissions, Bid/Ask, stops/freeze, volume,
 FOK support, margin, and `OrderCheck`. Broker SL/TP are immutable after fill;
 there is no trailing, break-even, partial close, resize, or `TRADE_ACTION_SLTP`.
 
-V14 derives magic namespace `HFT_GRID_AI_PIVOT_FRACTAL_V14`; older-engine
+Pivot derives symbol-scoped magic from `HFT_GRID_AI_PIVOT_MACRO_V1`; older-engine
 positions are never adopted, closed, or modified. One accepted request creates
-one exact submitted-geometry parity shadow outside H1/deep target cohorts.
+one exact submitted-geometry parity shadow outside virtual/broker target cohorts.
 Its `distance_eligible` field reports the stricter research minimum as a fact;
 that field may be false for a broker-accepted request and does not veto its
 calibration shadow. Broker stops/freeze checks and immutable prices are unchanged.
@@ -209,109 +139,61 @@ protection, close and deal-history facts. Non-hedging accounts collect evidence
 but cannot send. File diagnostics use captured broker event time; denied attempts
 show unavailable request/volume/quote facts as `n/a`, separate from reference risk.
 
-## Features And Duration
+## Features And Dataset
 
-When export is enabled, exactly six cached handles exist: Macro/Deep/Micro Bands
-and Stochastic. Fixed settings are Bands `21/0/2.0`, SMA,
-`PRICE_WEIGHTED`; Stochastic `K=5`, `D=3`, slowing `3`, `MODE_SMA`,
-`STO_CLOSECLOSE`. Origins own `origin_macro_*` and `origin_deep_*` on
-`signal_origins.tsv`; events own `deep_deep_*` and `deep_micro_*` on
-`deep_pivot_events.tsv`. Each block has a completeness flag; the snapshot flag
-requires both blocks. Missing blocks remain explicit and exclude only the
-corresponding model cohort. Each pair freezes at its own trigger: later Deep
-events cannot populate an earlier Macro snapshot.
+The [shared contract](model-feature-dataset.md) defines six shifts of native
+Stochastic K/D, ordinary weighted-price percent B/SMA5 and ATR13/SMA5 for both
+roles, plus Macro pivot zones and confirmed/forming M1 structure. Shift 0 freezes
+at observation. Each historical percent B value uses its own candle's weighted
+price. Warmup is bounded to 4,096 prior closed M1 bars; runtime catch-up is 256
+bars per callback. A live projection never commits a forming reversal.
 
-Handles are initialized once and safely released after partial initialization or
-normal deinitialization; export-off creates no research handles or deep/export
-state. `%B` uses the immutable touched pivot, remains unclipped, and exports raw,
-SMA 5, SMA slope, state, Band base-line/slope and shift-0 width facts according to
-the strict headers. Missing feature data marks research incompleteness only.
+Research owns six Macro/Micro handles plus M1 Stochastic; Micro M1 reuses its
+Stochastic handle. Candle's execution ATR remains independently owned. Export
+off creates no research handles or active research states. Partial availability
+is explicit per family; no per-tick handle creation or chart work occurs.
 
-`h1_structural_lifecycle_seconds` is exact broker-time duration from a lane's
-own entry to a confirmed close. `m10_parent_age_seconds` is exact parent entry
-to M10 trigger age. Neither is rounded or capped. The downstream application
-maps them to separate `<= minutes * 60` research predicates; H1 duration is
-retrospective and excluded from causal/model features.
+Pivot emits ten TSVs, Candle eleven, in
+`Common/Files/MQL5ModelDatasetV1/runs/<run_id>/`. Common facts separate signal,
+attempt, feature snapshot, trial, execution check and outcome grains. Pivot
+extensions retain origin/consumption geometry and all eight lane policies.
+Its broker IDs are opaque strings, not native order/deal ticket integers.
 
-Duration starts at each lane's own executable entry, including the midpoint.
-`NOT_TRIGGERED`, `INELIGIBLE` and `CENSORED_RUN_END` have null completed H1 duration.
-The two inclusive minute selectors combine with AND during research; they never
-delete later raw events or cap producer capture.
+Tick and deal milliseconds accompany existing second-based runtime scheduling.
+Second-only facts are explicitly marked SECOND; missing clocks remain null.
+Completed duration is exact entry-to-close milliseconds. No-touch, ineligible
+and run-censored records have no completed exit/duration/return/binary label.
+Actual broker close time and the later observation remain distinct. Parity is
+always excluded from target cohorts, including when its independent shadow wins.
+Submitted geometry, costs, fill deviation, request/check evidence and terminal
+reasons remain available. Unknown virtual costs/net are null.
 
-Confirmed broker entry and close may serialize to the same second, giving a
-valid duration of zero. Reversed clocks and duration mismatches are rejected;
-second-resolution fields do not establish actual subsecond latency.
+Only the new strict [reader](../../tools/model_dataset/README.md) accepts this
+family. Historical [V14 tooling](../../tools/deterministic_signal_ml/README.md)
+and [Candle tooling](../../tools/candle_pattern_ml/README.md) retain their own
+headers, fixtures and datasets; there is no conversion or dual writer.
 
-## Export And Include Boundaries
+## Failure And Include Boundaries
 
-V14 writes twelve files under
-`Common\\Files\\PivotFractalV14\\runs\\<run_id>\\` in this order:
+The entrypoint keeps ordered aggregators `services/trading_tools.mqh`,
+`services/trading_management.mqh`, `services/trading_signals.mqh` and
+`services/frontend.mqh`. Shared capture receives explicit configuration and
+imports pure pivot calculations; it never imports engine inputs or broker state.
+The Pivot adapter owns pending origins/parity links and the engine owns virtual
+and broker state. No active Deep input, discovery, fan-out, handle or output
+exists. The frontend stays read-only, limits owned positions to 16 and performs
+no chart work in nonvisual tester runs.
 
-```text
-run_manifest.tsv
-pivot_windows.tsv
-signal_origins.tsv
-virtual_trials.tsv
-virtual_outcomes.tsv
-deep_pivot_events.tsv
-deep_pivot_parent_links.tsv
-deep_virtual_trials.tsv
-deep_virtual_outcomes.tsv
-execution_checks.tsv
-broker_outcomes.tsv
-run_summary.tsv
-```
+Each table buffers at most 256 immutable rows. Headers and writes are checked;
+run IDs are fresh, and successful intake requires an unchanged complete seal.
+The first fatal research cause is retained, persisted outside the dataset when
+possible, and invalidates any earlier seal with FAILED.txt. Research resources
+are released once; unresolved broker ownership stays with reconciliation.
+Only the tester is stopped. Normal feature gaps are not fatal export failures.
+Finalization seals FAILED/CENSORED when writable and scores failed research zero.
 
-The entrypoint's ordered aggregators are
-`services/trading_tools.mqh`, `services/trading_management.mqh`,
-`services/trading_signals.mqh`, and `services/frontend.mqh`. Aggregators own
-include order; no sibling cycles or per-tick handle creation are permitted.
-The frontend is read-only and cannot influence execution. It draws at most 16
-owned positions and performs no chart work in nonvisual tester runs. Avoid
-per-tick handle creation, unbounded logging and full-history scans in hot paths.
-
-The Python validator accepts strict V14 only, builds native-grain H1/deep/
-broker/calibration artifacts, audits referential integrity and leakage, and
-trains explicit offline H1 or deep candidates. No runtime model artifact or
-execution filter is produced.
-
-Fatal export or research-integrity failures latch the first operation, broker
-clock and bounded state context. The journal diagnostic is unconditional, even
-with both debug switches off; best-effort persistence uses
-`Common\\Files\\PivotFractalV14\\diagnostics\\<run_id>.failure.txt` outside the
-strict dataset. Secondary teardown errors cannot replace the first cause.
-The EA requests one tester-only stop at the event boundary. Research is sealed
-before tester scoring, including its final flush; a failed run has a zero custom
-score and a `FAILED` / `CENSORED` summary when writable. An absent successful
-seal also invalidates the run. Valid ineligible, no-touch and capacity-rejected
-rows remain explicit outcomes. This research policy adds no live order control.
-Confirmed closed broker bookkeeping is removed after handing its close clock to
-existing research links, regardless of export success. A fatal research failure
-releases its buffers, pending origins, H1/deep state and indicator handles once,
-retaining first-error and peak evidence. Open/unresolved broker ownership stays
-with normal reconciliation. Export initialization failure stops tester startup;
-live broker processing continues independently with research disabled.
-
-Rows are validated once when queued and remain immutable in their buffers.
-Expected column counts use a bounded cache of the twelve exact headers. Each
-256-row flush encodes rows directly into a reserved ANSI byte array with CRLF
-endings and writes the exact byte count in one operation. Missing-file and
-current-header checks still run before each append; short writes fail the export.
-The batch buffer is local to the append and released when the call returns.
-
-Finite numeric TSV facts use 17 significant digits to round-trip runtime doubles.
-This preserves strict price comparisons such as a bid below PP even when the two
-numbers would round to the same ten-decimal string. This numeric format preserves
-causal comparisons and submitted prices; V14 separately versions the paired
-feature and direction contract.
-
-The bounded DuckDB parent chronology audit checks parent intervals and labels
-separately from full semantic validation. Timestamp-only historical recovery
-creates a distinct derivative with adjacent correction/provenance sidecars and
-preserves source exports. The [parent-close acceptance record](../research/parent-close-chronology-acceptance-2026-09-09.md)
-documents the corrected producer, focused tester parity and recovered-run limits.
-
-The [research tool guide](../../tools/deterministic_signal_ml/README.md) owns
-typed intake, native-grain artifacts, leakage/support rules and offline training
-procedures. [Environment validation](../environment/mt5-agentic-workflows.md)
-owns compile and operator acceptance procedures. No document authorizes live rollout.
+The [environment guide](../environment/mt5-agentic-workflows.md) owns native
+compilation and operator acceptance. Earlier V14 source/details are recoverable
+at `f5920fb:docs/architecture/market-data-broker-executor.md`; dated acceptance and
+recovered-run evidence remain reachable through the index. Nothing here grants
+live deployment authority.

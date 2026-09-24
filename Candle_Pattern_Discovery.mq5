@@ -3,8 +3,6 @@
 #property description "Independent Harami/Engulfing discovery with ATR risk and Macro-duration exits."
 
 #include "services/core/enums.mqh"
-#include "services/trading_management/pivot_fractal_engine_config.mqh"
-#include "services/indicators/pivot_points_calculator.mqh"
 #include "services/candle_pattern/config.mqh"
 #include "services/trading_signals/execution_lot_math.mqh"
 #include "services/model_features.mqh"

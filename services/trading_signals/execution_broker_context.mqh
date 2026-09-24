@@ -217,6 +217,7 @@ bool CaptureBrokerExecutionCheck(const SignalTypes direction,
   check.phase = phase;
   check.sequence = sequence;
   check.broker_time = broker_time > 0 ? broker_time : TimeCurrent();
+  check.broker_time_msc = observed_tick.time_msc;
   check.symbol = _Symbol;
   check.direction = direction;
   check.planned_entry_price = entry_price;

@@ -37,7 +37,7 @@ string PivotPositionComment(const PivotSignal &signal)
   string identity = signal.broker_signal_id;
   if(StringLen(identity) > 24)
     identity = StringSubstr(identity, StringLen(identity) - 24);
-  return "PF14_" + identity;
+  return "PM1_" + identity;
 }
 
 bool PivotPositionCommentMatches(const PivotSignal &signal)
@@ -197,6 +197,7 @@ void ApplySelectedPivotPositionFacts(PivotSignal &signal)
   }
   signal.execution.broker_entry_time =
     (datetime)PositionGetInteger(POSITION_TIME);
+  signal.execution.broker_entry_time_msc = PositionGetInteger(POSITION_TIME_MSC);
   double point_size = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
   if(point_size > 0.0)
   {
@@ -273,6 +274,7 @@ bool ReconcilePivotEntryFromHistory(PivotSignal &signal)
 
   bool found = false;
   datetime entry_time = 0;
+  long entry_time_msc = 0;
   double entry_value = 0.0;
   double entry_volume = 0.0;
   ulong position_identifier = 0;
@@ -310,6 +312,7 @@ bool ReconcilePivotEntryFromHistory(PivotSignal &signal)
        (deal_time == entry_time && deal_ticket < entry_deal_ticket))
     {
       entry_time = deal_time;
+      entry_time_msc = HistoryDealGetInteger(deal_ticket, DEAL_TIME_MSC);
       entry_deal_ticket = deal_ticket;
     }
     double deal_volume = HistoryDealGetDouble(deal_ticket, DEAL_VOLUME);
@@ -347,6 +350,7 @@ bool ReconcilePivotEntryFromHistory(PivotSignal &signal)
     signal.execution.position_ticket = entry_order_ticket;
   signal.execution.broker_entry_price = entry_price;
   signal.execution.broker_entry_time = entry_time;
+  signal.execution.broker_entry_time_msc = entry_time_msc;
   signal.execution.broker_volume = entry_volume;
   if(PivotHistoryOrderIdentityMatches(signal, entry_order_ticket))
   {
@@ -433,6 +437,7 @@ bool ReconcilePivotCloseFromHistory(PivotSignal &signal)
   double closed_volume = 0.0;
   double close_value = 0.0;
   datetime close_time = 0;
+  long close_time_msc = 0;
   ulong last_close_deal_ticket = 0;
   int close_deal_count = 0;
   string close_reason_token = "";
@@ -482,6 +487,7 @@ bool ReconcilePivotCloseFromHistory(PivotSignal &signal)
        (deal_time == close_time && deal_ticket > last_close_deal_ticket))
     {
       close_time = deal_time;
+      close_time_msc = HistoryDealGetInteger(deal_ticket, DEAL_TIME_MSC);
       last_close_deal_ticket = deal_ticket;
     }
   }
@@ -515,6 +521,7 @@ bool ReconcilePivotCloseFromHistory(PivotSignal &signal)
   signal.execution.close_deal_count = close_deal_count;
   signal.execution.close_price = close_price;
   signal.execution.close_time = close_time;
+  signal.execution.close_time_msc = close_time_msc;
   signal.execution.closed_volume = closed_volume;
   signal.execution.gross_profit = gross_profit;
   signal.execution.commission = commission;
@@ -546,7 +553,7 @@ bool ReconcilePivotCloseFromHistory(PivotSignal &signal)
       signal.direction == BULLISH
       ? (terminal_price - close_price) / point_size
       : (close_price - terminal_price) / point_size;
-    if(signal.features.complete)
+    if(signal.feature_complete)
     {
       signal.execution.binary_eligible = true;
       signal.execution.binary_target = terminal_reason == "BROKER_TP" ? 1 : 0;

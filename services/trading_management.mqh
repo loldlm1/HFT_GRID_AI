@@ -8,6 +8,5 @@
 #include "trading_management/ea_inputs.mqh"
 #include "trading_management/pivot_fractal_engine_config.mqh"
 #include "trading_management/market_conditions_functions.mqh"
-#include "trading_management/indicator_definitions_loader.mqh"
 
 #endif // _SERVICES_TRADING_MANAGEMENT_MQH_

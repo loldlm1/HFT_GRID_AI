@@ -1,7 +1,8 @@
 #ifndef MODEL_FEATURES_MQH
 #define MODEL_FEATURES_MQH
 
-// The caller provides the pure pivot primitives; engine inputs/state stay outside.
+// Core enums are supplied by the entrypoint; this closure has no engine inputs.
+#include "indicators/pivot_points_calculator.mqh"
 #include "model_features/schema.mqh"
 #include "model_features/clock.mqh"
 #include "model_features/types.mqh"
@@ -9,6 +10,8 @@
 #include "model_features/indicators.mqh"
 #include "model_features/pivot_context.mqh"
 #include "model_features/stochastic_structure.mqh"
+
+bool g_model_last_capture_complete = false;
 
 bool ModelInitialize(const ModelCaptureConfig &config)
 {
@@ -49,6 +52,7 @@ void ModelInvalidateLiveFeatures(ModelRow &row)
 bool ModelCapture(const string signal_id, const string snapshot_id, const string stage,
                    const long sequence, const MqlTick &tick)
 {
+  g_model_last_capture_complete = false;
   if(!ModelReady() || !ModelCheckSpecification()) return false;
   ModelRow row;
   row.Init(MODEL_FEATURE_SNAPSHOTS);
@@ -73,13 +77,14 @@ bool ModelCapture(const string signal_id, const string snapshot_id, const string
                     after.bid == tick.bid && after.ask == tick.ask;
   if(!consistent) ModelInvalidateLiveFeatures(row);
   bool complete = consistent && macro && micro && pivot && structure;
+  g_model_last_capture_complete = complete;
   row.Flag("complete", complete);
   if(!complete) g_model_feature_gaps++;
   g_model_audit_count++;
   return ModelWrite(row);
 }
 
-void ModelSeal(const int broker_peak, const int virtual_peak)
+void ModelSeal(const int broker_peak, const int virtual_peak, const string completion = "NATURAL")
 {
   if(!g_model_config.enabled || !g_model_open || g_model_sealed) return;
   ModelCloseWindow(g_model_last_time, "RUN_END");
@@ -88,7 +93,7 @@ void ModelSeal(const int broker_peak, const int virtual_peak)
     if(file != MODEL_RUN_SUMMARY && ModelEngineFile(file, g_model_config.engine))
       if(!ModelFlush(file, true) && !g_model_failed) ModelFail("FINAL_FLUSH");
   ModelMetadata(MODEL_RUN_SUMMARY, "export_status", g_model_failed ? "FAILED" : "OK", true);
-  ModelMetadata(MODEL_RUN_SUMMARY, "completion_status", g_model_failed ? "CENSORED" : "NATURAL", true);
+  ModelMetadata(MODEL_RUN_SUMMARY, "completion_status", g_model_failed ? "CENSORED" : completion, true);
   ModelMetadata(MODEL_RUN_SUMMARY, "failure", g_model_failed ? g_model_failure : "NONE", true);
   ModelMetadata(MODEL_RUN_SUMMARY, "broker_peak", ModelInteger(broker_peak), true);
   ModelMetadata(MODEL_RUN_SUMMARY, "virtual_peak", ModelInteger(virtual_peak), true);

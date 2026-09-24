@@ -13,11 +13,7 @@ enum SignalTypes
 	BEARISH   = 2
 };
 
-enum PivotFractalEngineIds
-{
-  PIVOT_FRACTAL_NONE = 0,
-  PIVOT_FRACTAL_V2   = 2
-};
+enum PivotLevelCount { PIVOT_LEVEL_COUNT = 7 };
 
 enum PivotLevelIds
 {
@@ -103,26 +99,6 @@ enum PivotTrialQuoteSides
   PIVOT_TRIAL_QUOTE_SIDE_NONE = 0,
   PIVOT_TRIAL_QUOTE_SIDE_BID  = 1,
   PIVOT_TRIAL_QUOTE_SIDE_ASK  = 2
-};
-
-enum DeepPivotAdmissionStatuses
-{
-  DEEP_PIVOT_ADMISSION_ADMITTED          = 0,
-  DEEP_PIVOT_ADMISSION_CAPACITY_REJECTED = 1
-};
-
-enum DeepPivotParentKinds
-{
-  DEEP_PIVOT_PARENT_H1_VIRTUAL = 0,
-  DEEP_PIVOT_PARENT_BROKER     = 1
-};
-
-enum DeepPivotLinkStatuses
-{
-  DEEP_PIVOT_LINK_ACTIVE       = 0,
-  DEEP_PIVOT_LINK_PARENT_EXIT  = 1,
-  DEEP_PIVOT_LINK_RUN_END      = 2,
-  DEEP_PIVOT_LINK_COMPLETE     = 3
 };
 
 enum ExecutionLotTypes

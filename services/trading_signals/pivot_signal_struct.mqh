@@ -9,6 +9,7 @@ struct BrokerExecutionCheck
   string phase;
   int sequence;
   datetime broker_time;
+  long broker_time_msc;
   string symbol;
   SignalTypes direction;
   long account_margin_mode;
@@ -79,6 +80,7 @@ struct BrokerExecutionCheck
     phase = "";
     sequence = 0;
     broker_time = 0;
+    broker_time_msc = 0;
     symbol = "";
     direction = NO_SIGNAL;
     account_margin_mode = 0;
@@ -140,6 +142,7 @@ struct BrokerExecutionCheck
     phase = other.phase;
     sequence = other.sequence;
     broker_time = other.broker_time;
+    broker_time_msc = other.broker_time_msc;
     symbol = other.symbol;
     direction = other.direction;
     account_margin_mode = other.account_margin_mode;
@@ -272,7 +275,9 @@ struct PivotSignalExecution
   ulong position_identifier;
   string position_comment;
   datetime broker_entry_time;
+  long broker_entry_time_msc;
   datetime close_time;
+  long close_time_msc;
   datetime last_action_time;
   int last_check_sequence;
   int close_deal_count;
@@ -341,7 +346,9 @@ struct PivotSignalExecution
     position_identifier = 0;
     position_comment = "";
     broker_entry_time = 0;
+    broker_entry_time_msc = 0;
     close_time = 0;
+    close_time_msc = 0;
     last_action_time = 0;
     last_check_sequence = 0;
     close_deal_count = 0;
@@ -402,7 +409,9 @@ struct PivotSignalExecution
     position_identifier = other.position_identifier;
     position_comment = other.position_comment;
     broker_entry_time = other.broker_entry_time;
+    broker_entry_time_msc = other.broker_entry_time_msc;
     close_time = other.close_time;
+    close_time_msc = other.close_time_msc;
     last_action_time = other.last_action_time;
     last_check_sequence = other.last_check_sequence;
     close_deal_count = other.close_deal_count;
@@ -438,11 +447,12 @@ struct PivotSignal
   PivotTrialEntryPolicies broker_entry_policy;
   int broker_tp_r_multiple;
   datetime trigger_time;
+  long trigger_time_msc;
   double trigger_bid;
   double trigger_ask;
   double trigger_spread_points;
   PivotPriceLadder levels;
-  PivotContextFeatureSnapshot features;
+  bool feature_complete;
   PivotSignalRoute route;
   PivotSignalExecution execution;
   ExecutionAdmissionStatuses admission_status;
@@ -478,11 +488,12 @@ struct PivotSignal
     broker_entry_policy = PIVOT_TRIAL_ENTRY_STRUCTURAL;
     broker_tp_r_multiple = 1;
     trigger_time = 0;
+    trigger_time_msc = 0;
     trigger_bid = 0.0;
     trigger_ask = 0.0;
     trigger_spread_points = 0.0;
     levels.Reset();
-    features.Reset();
+    feature_complete = false;
     route.Reset();
     execution.Reset();
     admission_status = EXECUTION_ADMISSION_NOT_EVALUATED;
@@ -509,11 +520,12 @@ struct PivotSignal
     broker_entry_policy = other.broker_entry_policy;
     broker_tp_r_multiple = other.broker_tp_r_multiple;
     trigger_time = other.trigger_time;
+    trigger_time_msc = other.trigger_time_msc;
     trigger_bid = other.trigger_bid;
     trigger_ask = other.trigger_ask;
     trigger_spread_points = other.trigger_spread_points;
     levels.CopyFrom(other.levels);
-    features.CopyFrom(other.features);
+    feature_complete = other.feature_complete;
     route.CopyFrom(other.route);
     execution.CopyFrom(other.execution);
     admission_status = other.admission_status;

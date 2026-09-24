@@ -548,7 +548,7 @@ _SPEC = {
     'pivot_origins.tsv': (
         'run_id:s:P '
         'signal_id:s:P '
-        'broker_signal_id:i?:P '
+        'broker_signal_id:s?:P '
         'level_id:s:P '
         'pivot_raw_price:d:C '
         'pivot_trade_price:d:C '

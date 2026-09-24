@@ -1,6 +1,7 @@
 # Current Project State
 
-Updated 2026-09-24. Pivot EA `1.40`, strict schema `14`, engine `PIVOT_FRACTAL_V2`.
+Updated 2026-09-24. Both EAs are `2.00`, common schema `1`: Pivot
+`PIVOT_MACRO_V1` and Candle `CANDLE_PATTERN_ATR_V2`.
 This index owns changing status; guides own procedures and dated evidence keeps
 its original results.
 
@@ -11,7 +12,8 @@ baselines. Work is confined to
 this repository. Django implementation and live rollout remain excluded.
 Sprint 1 checks pass: 31 local links, 12 table descriptors, 472 typed raw fields,
 unchanged 14-file Candle/38-file Pivot include hashes, retained matching binaries
-and available gold/FX seasonal history samples. EA source/binaries are unchanged.
+and available gold/FX seasonal history samples. That sprint left EA sources and
+binaries unchanged.
 Sprint 2 adds the [shared local validator](../tools/model_dataset/README.md):
 58 contract/feature/clock/engine tests pass, along with the unchanged 44 Candle
 and 51 Pivot tests. Generated MQL/JSON descriptors match the frozen 472-field
@@ -23,7 +25,18 @@ M1 structure match independent calculations. H1 export-on/off order/deal rows
 match exactly, and the M6/M3 run has 26 actual expiry closes. Fresh H2/M6 1.02
 baselines match all order/deal rows and retained raw lifecycle fields, including
 millisecond clocks. All 60 shared and 44 legacy Candle tests pass. MetaEditor 6184 AVX2
-reports zero errors/warnings. Pivot V14's source closure and EX5 remain unchanged.
+reports zero errors/warnings. Sprint 3 left Pivot V14's source closure and EX5 unchanged.
+Sprint 4 migrates Pivot to shared Macro/Micro capture and removes its active Deep
+path. Both EAs compile with zero errors/warnings on MetaEditor 6184 AVX2. Pivot
+H1/M3 and H2/M3 strict exports preserve 86 origins and 758 virtual/parity lanes;
+all mapped geometry, entry/terminal clocks, money and virtual labels match the
+retained V14 baselines. All 190 H1 and 102 H2 native order/deal rows match after
+the declared ownership-comment change. Export-on/off pairs match without that
+exception. Candle's shared-include regression and export-on/off pair each match
+all 574 order/deal rows. Native feature audits pass for all three exported cases.
+The 63 shared and 51 legacy Pivot tests pass; unchanged 44 legacy Candle checks
+retain their Sprint 3 pass. Exact source/EX5 pins are in `s4/build-b02.json`.
+Sprint 5's seasonal, prefix, failure and resource matrix remains pending.
 Execution receipts: `.codex-artifacts/model-feature-framework/`.
 
 MT5 M1-M4 delivery and P1-P4 optimization are complete. The independent

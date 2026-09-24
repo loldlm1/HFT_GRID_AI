@@ -53,7 +53,7 @@ void EnsureQueryDebugSessionHeaderLogged()
     "QUERY_DEBUG_SESSION",
     StringFormat("symbol=%s|engine=%s|macro_tf=%s|micro_tf=%s|broker_session=%s|lot_type=%s|lot_size=%.8f|reference_balance=%.2f",
                  _Symbol,
-                 PivotFractalEngineLabel(PIVOT_FRACTAL_V2),
+                 "PIVOT_MACRO_V1",
                  EnumToString(Macro_Timeframe),
                  EnumToString(Micro_Timeframe),
                  EnumToString(Broker_Session),

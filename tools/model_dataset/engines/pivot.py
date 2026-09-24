@@ -43,7 +43,9 @@ def validate(run):
                 require(t["entry_time_msc"] is not None, "Eligible lane never entered")
             if t["entry_policy"] == "MIDPOINT_50" and t["entry_time_msc"] is not None:
                 require(integer(t["entry_time_msc"]) >= integer(signal["signal_time_msc"]), "Midpoint predates origin")
-                require(direction * (number(t["entry_price"]) - number(origin["midpoint_50_price"])) <= tick * Decimal("0.000001"), "Midpoint lacks executable touch")
+                require(t["entry_bid"] is not None and t["entry_ask"] is not None, "Missing midpoint trigger quote")
+                require(direction * (number(t["entry_bid"]) - number(origin["midpoint_50_price"])) <= tick * Decimal("0.000001"), "Midpoint lacks Bid touch")
+                require(t["entry_price"] == t["entry_ask" if direction == 1 else "entry_bid"], "Wrong midpoint executable quote")
         brokers = list(run.db.execute("SELECT * FROM trials WHERE attempt_id=? AND role='BROKER'", (attempt["attempt_id"],)))
         parity = list(run.db.execute("SELECT * FROM trials WHERE attempt_id=? AND role='PARITY'", (attempt["attempt_id"],)))
         require(len(brokers) <= 1 and len(parity) == sum(t["eligibility"] == "ACCEPTED" for t in brokers), "Pivot one-request parity cardinality")

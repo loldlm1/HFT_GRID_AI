@@ -8,17 +8,11 @@
 // across services. Any module relying on these inputs should include this file
 // (directly or through the trading_management aggregator).
 
-const int    PIVOT_CONTEXT_BANDS_PERIOD      = 21;
-const double PIVOT_CONTEXT_B_PERCENT_DEVIATION = 2.0;
-const int    PIVOT_CONTEXT_STOCHASTIC_K_PERIOD = 5;
-const int    PIVOT_CONTEXT_STOCHASTIC_D_PERIOD = 3;
-const int    PIVOT_CONTEXT_STOCHASTIC_SLOWING  = 3;
 const double PIVOT_EXECUTION_REFERENCE_BALANCE = 1000000.0;
 
 input group  "+= Market Data Time =+";
 input BrokerSessionTimeModes Broker_Session = FIXED_TIME_SESSIONS;
 input ENUM_TIMEFRAMES Macro_Timeframe = PERIOD_H1;
-input ENUM_TIMEFRAMES Deep_Timeframe = PERIOD_M10;
 input ENUM_TIMEFRAMES Micro_Timeframe = PERIOD_M3;
 
 input group  "+= Broker Execution =+";

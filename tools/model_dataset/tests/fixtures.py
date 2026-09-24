@@ -139,6 +139,8 @@ def make_run(path, engine="CANDLE_PATTERN_ATR_V2", *, empty=False, session="FIXE
                        rr=rr, declared_time_msc=NOW, entry_time_msc=at,
                        deadline_time_msc=NOW+3600000 if candle else None, entry_price=entry, sl=sl, tp=tp,
                        volume="0.01", eligibility="ACCEPTED" if role=="BROKER" else "ELIGIBLE")
+                if policy == "MIDPOINT_50":
+                    tables["trials.tsv"][-1].update(entry_bid=str(entry), entry_ask=str(entry))
                 gross = direction*(tp-entry)
                 append("outcomes.tsv", trial_id=trial_id, attempt_id=attempt_id, role=role, rr=rr,
                        status="TP_FIRST", broker_reason="DEAL_REASON_TP" if role=="BROKER" else None,

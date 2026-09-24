@@ -91,7 +91,7 @@ string ModelTypes(const int file)
     case 6: return "sssstibsddddddddiiiiiibibbbbbbddddddddddddbbsdddddbbbbbbssbbssibbddddddsbiis";
     case 7: return "ssssisstttttdddddddddibsididdddsddbiiiiidddddddddddddddddbbbiisiisiisiisiis";
     case 8: return "ss";
-    case 9: return "ssisdddddddddbbss";
+    case 9: return "ssssdddddddddbbss";
     case 10: return "ssssdddddddd";
     case 11: return "ssssiddtiddsdssiis";
   }

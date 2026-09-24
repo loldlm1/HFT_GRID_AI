@@ -86,15 +86,9 @@ struct PivotFractalWindowState
 
 PivotFractalWindowState g_pivot_fractal_window;
 
-PivotFractalWindowState g_deep_pivot_window;
-
-void ResetDeepPivotRuntimeState();
-
 void ResetPivotFractalEngineState()
 {
   g_pivot_fractal_window.Reset(Macro_Timeframe);
-  g_deep_pivot_window.Reset(Deep_Timeframe);
-  ResetDeepPivotRuntimeState();
 }
 
 void MarkPivotWindowPending(PivotFractalWindowState &window,
@@ -249,32 +243,6 @@ bool RefreshPivotFractalWindow(const datetime active_bar_open,
                                         active_bar_open,
                                         observation_time,
                                         force_refresh);
-}
-
-bool RefreshDeepPivotFractalWindow(const datetime observation_time,
-                                   const bool force_refresh = false)
-{
-  if(observation_time <= 0 || Deep_Timeframe == PERIOD_CURRENT)
-    return false;
-  ResetLastError();
-  datetime current_open = iTime(_Symbol, Deep_Timeframe, 0);
-  if(current_open <= 0)
-  {
-    if(g_deep_pivot_window.state != PIVOT_WINDOW_VALID)
-    {
-      g_deep_pivot_window.timeframe = Deep_Timeframe;
-      MarkPivotWindowPending(g_deep_pivot_window,
-                             GetLastError(),
-                             "ACTIVE_DEEP_BAR_UNAVAILABLE",
-                             observation_time);
-    }
-    return false;
-  }
-  return RefreshPivotFractalWindowStateForTimeframe(g_deep_pivot_window,
-                                                    Deep_Timeframe,
-                                                    current_open,
-                                                    observation_time,
-                                                    force_refresh);
 }
 
 #endif // _SERVICES_TRADING_SIGNALS_PIVOT_FRACTAL_ENGINE_STATE_MQH_

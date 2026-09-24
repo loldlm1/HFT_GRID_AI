@@ -83,6 +83,7 @@ void PivotSignalTriggerTick(const PivotSignal &signal,
 {
   ZeroMemory(tick_out);
   tick_out.time = signal.trigger_time;
+  tick_out.time_msc = signal.trigger_time_msc;
   tick_out.bid = signal.trigger_bid;
   tick_out.ask = signal.trigger_ask;
 }
@@ -112,9 +113,9 @@ void AppendExecutionBlockReason(BrokerExecutionCheck &check,
 bool ExportPivotExecutionCheck(PivotSignal &signal,
                                const BrokerExecutionCheck &check)
 {
-  if(!PivotV14Enabled())
+  if(!Enable_Signal_Feature_Export)
     return true;
-  bool recorded = PivotV14RecordExecutionCheck(signal, check);
+  bool recorded = PivotDatasetRecordExecutionCheck(signal, check);
   if(recorded && check.phase != "TERMINAL" &&
      signal.execution.broker_entry_confirmed)
     signal.execution.entry_check_exported = true;
@@ -125,12 +126,12 @@ bool RegisterPivotOrigin(PivotSignal &signal)
 {
   if(signal.origin_registered)
     return true;
-  if(!PivotV14Enabled())
+  if(!Enable_Signal_Feature_Export)
   {
     signal.origin_registered = true;
     return true;
   }
-  if(!PivotV14RegisterOrigin(signal))
+  if(!PivotDatasetRegisterOrigin(signal))
     return false;
   signal.origin_registered = true;
   return true;
@@ -138,11 +139,11 @@ bool RegisterPivotOrigin(PivotSignal &signal)
 
 bool UpdatePivotOrigin(PivotSignal &signal)
 {
-  if(!PivotV14Enabled())
+  if(!Enable_Signal_Feature_Export)
     return true;
   if(!signal.origin_registered)
     return false;
-  return PivotV14UpdateOrigin(signal);
+  return PivotDatasetUpdateOrigin(signal);
 }
 
 void ApplyFailedEligibilityDebugSideEffect(const BrokerExecutionCheck &check)
@@ -370,8 +371,8 @@ bool SendPivotMarketOrder(PivotSignal &signal)
                                 pre_send_tick,
                                 request,
                                 send_check) &&
-     PivotV14Enabled())
-    PivotV14MarkFailed("BROKER_PARITY_DECLARATION_FAILED");
+     Enable_Signal_Feature_Export)
+    PivotDatasetFail("BROKER_PARITY_DECLARATION_FAILED");
   ReconcilePivotSignalBrokerPosition(signal);
   UpdatePivotOrigin(signal);
   ExportPivotExecutionCheck(signal, send_check);
@@ -397,7 +398,7 @@ bool ProcessPivotSignalAttempt(PivotSignal &signal)
                           signal.execution.observation_check);
   if(RegisterPivotOrigin(signal) &&
      !DeclareInitialPivotTrialLanes(signal, observation_tick))
-    PivotV14MarkFailed("H1_LANE_DECLARATION_FAILED", "", 0, signal.origin_id);
+    PivotDatasetFail("H1_LANE_DECLARATION_FAILED", "", 0, signal.origin_id);
 
   string permission_source = "";
   string permission_reason = "";

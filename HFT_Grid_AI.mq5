@@ -4,7 +4,7 @@
 //+------------------------------------------------------------------+
 #property copyright     "https://tradingsniperpanel.com/"
 #property description   "Copyright Trading Sniper Team."
-#property version       "1.40"
+#property version       "2.00"
 #property description   "Support Contact @chu4xtrade"
 #property description   "All Rights Reserved for the Trading Sniper Team."
 #property description   "Pivot Fractal Market Data Collector And Broker Executor"
@@ -23,7 +23,7 @@ bool g_pivot_run_finalized = false;
 
 ulong ResolveStableExecutionMagic()
 {
-  string source = "HFT_GRID_AI_PIVOT_FRACTAL_V14|" + _Symbol;
+  string source = "HFT_GRID_AI_PIVOT_MACRO_V1|" + _Symbol;
   ulong hash = 1469598103934665603;
   for(int i = 0; i < StringLen(source); i++)
   {
@@ -80,11 +80,6 @@ bool ValidatePivotTimeframeInputs(string &reason_out)
     reason_out = "Micro_Timeframe must be an explicit timeframe";
     return false;
   }
-  if(Deep_Timeframe == PERIOD_CURRENT)
-  {
-    reason_out = "Deep_Timeframe must be an explicit timeframe";
-    return false;
-  }
   if(!IsExplicitSupportedPivotTimeframe(Macro_Timeframe))
   {
     reason_out = "Macro_Timeframe is not a supported MetaTrader timeframe";
@@ -95,21 +90,13 @@ bool ValidatePivotTimeframeInputs(string &reason_out)
     reason_out = "Micro_Timeframe is not a supported MetaTrader timeframe";
     return false;
   }
-  if(!IsExplicitSupportedPivotTimeframe(Deep_Timeframe))
+  if(Macro_Timeframe == Micro_Timeframe)
   {
-    reason_out = "Deep_Timeframe is not a supported MetaTrader timeframe";
-    return false;
-  }
-  if(Macro_Timeframe == Micro_Timeframe ||
-     Macro_Timeframe == Deep_Timeframe ||
-     Micro_Timeframe == Deep_Timeframe)
-  {
-    reason_out = "Macro_Timeframe, Deep_Timeframe, and Micro_Timeframe must be distinct";
+    reason_out = "Macro_Timeframe and Micro_Timeframe must be distinct";
     return false;
   }
 
   int macro_seconds = PeriodSeconds(Macro_Timeframe);
-  int deep_seconds = PeriodSeconds(Deep_Timeframe);
   int micro_seconds = PeriodSeconds(Micro_Timeframe);
   if(macro_seconds <= 0)
   {
@@ -121,14 +108,9 @@ bool ValidatePivotTimeframeInputs(string &reason_out)
     reason_out = "Micro_Timeframe duration is unavailable";
     return false;
   }
-  if(deep_seconds <= 0)
+  if(micro_seconds >= macro_seconds)
   {
-    reason_out = "Deep_Timeframe duration is unavailable";
-    return false;
-  }
-  if(micro_seconds >= deep_seconds || deep_seconds >= macro_seconds)
-  {
-    reason_out = "Timeframes must satisfy Micro_Timeframe < Deep_Timeframe < Macro_Timeframe";
+    reason_out = "Timeframes must satisfy Micro_Timeframe < Macro_Timeframe";
     return false;
   }
   return true;
@@ -157,21 +139,21 @@ void RefreshCustomSymbolRates()
 string PivotRunCompletionStatus()
 {
   if(MQLInfoInteger(MQL_TESTER) > 0 && g_tester_interval_completed &&
-     !PivotV14ResearchFailed())
+     !g_model_failed)
     return "NATURAL";
   return "CENSORED";
 }
 
 void HandlePivotResearchFailureAtEventBoundary(const bool stop_tester = true)
 {
-  PivotV14CaptureResearchFailure();
-  if(PivotV14ResearchFailed() && !g_pivot_v14_research_discarded)
+  PivotDatasetCaptureResearchFailure();
+  if(g_model_failed && !g_pivot_dataset_research_discarded)
   {
     FinalizePivotSignalTerminalStates();
     DiscardFailedPivotResearch();
   }
   if(stop_tester)
-    PivotV14StopFailedTesterAtEventBoundary();
+    ModelBoundary();
 }
 
 int OnInit()
@@ -182,9 +164,8 @@ int OnInit()
   string timeframe_reason = "";
   if(!ValidatePivotTimeframeInputs(timeframe_reason))
   {
-    PrintFormat("Invalid pivot timeframe inputs | Macro=%s | Deep=%s | Micro=%s | reason=%s",
+    PrintFormat("Invalid pivot timeframe inputs | Macro=%s | Micro=%s | reason=%s",
                 EnumToString(Macro_Timeframe),
-                EnumToString(Deep_Timeframe),
                 EnumToString(Micro_Timeframe),
                 timeframe_reason);
     return INIT_PARAMETERS_INCORRECT;
@@ -206,21 +187,18 @@ int OnInit()
 
   g_execution_magic = ResolveStableExecutionMagic();
   if(Enable_Logs)
-    PrintFormat("Pivot timeframe order | Micro=%s | Deep=%s | Macro=%s",
+    PrintFormat("Pivot timeframe order | Micro=%s | Macro=%s",
                 EnumToString(Micro_Timeframe),
-                EnumToString(Deep_Timeframe),
                 EnumToString(Macro_Timeframe));
-  if(!PivotV14StatsInit())
+  if(!PivotDatasetInitialize())
   {
     if(MQLInfoInteger(MQL_TESTER) > 0)
     {
-      Print("V14 export initialization failed; tester initialization stopped");
+      Print("Model dataset export initialization failed; tester initialization stopped");
       return INIT_FAILED;
     }
-    Print("V14 export initialization failed; live broker processing remains active");
+    Print("Model dataset export initialization failed; live broker processing remains active");
   }
-  if(PivotV14Ready())
-    LoadAllIndicatorDefinitions();
   InitializePivotFractalRuntime();
   InitializePivotBrokerOwnershipBoundary();
   RefreshCustomSymbolRates();
@@ -242,26 +220,23 @@ void FinalizePivotRunExport()
     return;
   g_pivot_run_finalized = true;
   ReconcileAndFinalizePivotSignals();
-  PivotV14CaptureResearchFailure();
-  if(!PivotV14ResearchFailed())
+  PivotDatasetCaptureResearchFailure();
+  if(!g_model_failed)
     FinalizePivotSignalAttemptsForExport();
-  if(!PivotV14ResearchFailed())
+  if(!g_model_failed)
     FinalizePivotTrialLanesForExport();
-  if(!PivotV14ResearchFailed())
-    FinalizeDeepPivotForExport();
-  if(!PivotV14ResearchFailed())
+  if(!g_model_failed)
     FinalizeActivePivotWindowsForExport();
   HandlePivotResearchFailureAtEventBoundary(false);
-  if(!PivotV14WriteSummary(PivotRunCompletionStatus()))
-    HandlePivotResearchFailureAtEventBoundary(false);
+  ModelSeal(g_pivot_dataset_broker_peak, PivotTrialActiveStatePeak(), PivotRunCompletionStatus());
+  HandlePivotResearchFailureAtEventBoundary(false);
 }
 
 void OnDeinit(const int reason)
 {
   FinalizePivotRunExport();
-  PivotV14StatsDeinit(PivotRunCompletionStatus());
   CloseAppendFileLog();
-  ReleaseAllIndicatorDefinitions();
+  ModelCloseIndicators();
   FrontendResetRefreshThrottle();
 
   if(FrontendChartWorkEnabled())
@@ -279,7 +254,8 @@ void OnTradeTransaction(const MqlTradeTransaction &trans,
                         const MqlTradeRequest &request,
                         const MqlTradeResult &result)
 {
-  RefreshCustomSymbolRates();
+  MqlTick tick;
+  if(RefreshCustomSymbolRates(tick) && tick.time_msc > 0) ModelObserve(tick, g_model_sequence + 1);
   ReconcileAndFinalizePivotSignals();
   HandlePivotResearchFailureAtEventBoundary();
 }
@@ -288,6 +264,7 @@ void OnTick()
 {
   MqlTick tick;
   RefreshCustomSymbolRates(tick);
+  if(tick.time_msc > 0) ModelObserve(tick, g_model_sequence + 1);
   if(!DebugEquityGuardAllowsProcessing())
   {
     HandlePivotResearchFailureAtEventBoundary();
@@ -300,7 +277,6 @@ void OnTick()
   ProcessPivotTrialLanesTick(tick);
   if(pivot_context_ready)
     ProcessPreparedPivotFractalTick(tick);
-  ProcessDeepPivotTick(tick);
   datetime current_time = TimeCurrent();
   if(FrontendRefreshDue(current_time))
     RefreshExecutionVisualization();
@@ -309,14 +285,14 @@ void OnTick()
 
 double OnTester()
 {
-  PivotV14CaptureResearchFailure();
+  PivotDatasetCaptureResearchFailure();
   g_tester_interval_completed =
     !g_forced_stop_triggered && !g_debug_no_money_abort_pending &&
-    !PivotV14ResearchFailed();
+    !g_model_failed;
   // Seal before scoring: TesterStop also invokes OnTester, and a final flush
   // can discover the first failure after the final tick.
   FinalizePivotRunExport();
-  if(PivotV14ResearchFailed())
+  if(g_model_failed)
     g_tester_interval_completed = false;
   if(!g_tester_interval_completed)
     return 0.0;

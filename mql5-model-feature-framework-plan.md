@@ -1,7 +1,7 @@
 # Plan: MQL5 Engine Feature Framework
 
 - **Generated:** 2026-09-24
-- **Status:** Executing - Sprint 3
+- **Status:** Executing - Sprint 4
 - **Execution authorization:** User requested execution of all six sprints on 2026-09-24, including the planned validation and commit gates.
 - **Proposal:** Not requested; this plan implements the decisions from the discussion.
 - **Complexity:** High

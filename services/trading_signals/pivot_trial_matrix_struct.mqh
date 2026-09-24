@@ -57,10 +57,10 @@ struct PivotTrialOriginSnapshot
   string broker_signal_id;
   string symbol;
   ENUM_TIMEFRAMES macro_timeframe;
-  ENUM_TIMEFRAMES deep_timeframe;
   ENUM_TIMEFRAMES micro_timeframe;
   datetime active_bar_open;
   datetime trigger_time;
+  long trigger_time_msc;
   PivotLevelIds level_id;
   SignalTypes direction;
   double trigger_bid;
@@ -78,7 +78,6 @@ struct PivotTrialOriginSnapshot
   double structural_stop_loss;
   double structural_take_profit;
   PivotPriceLadder levels;
-  PivotContextFeatureSnapshot features;
 
   PivotTrialOriginSnapshot()
   {
@@ -97,10 +96,10 @@ struct PivotTrialOriginSnapshot
     broker_signal_id = "";
     symbol = "";
     macro_timeframe = PERIOD_CURRENT;
-    deep_timeframe = PERIOD_CURRENT;
     micro_timeframe = PERIOD_CURRENT;
     active_bar_open = 0;
     trigger_time = 0;
+    trigger_time_msc = 0;
     level_id = PIVOT_LEVEL_PP;
     direction = NO_SIGNAL;
     trigger_bid = 0.0;
@@ -118,7 +117,6 @@ struct PivotTrialOriginSnapshot
     structural_stop_loss = 0.0;
     structural_take_profit = 0.0;
     levels.Reset();
-    features.Reset();
   }
 
   void CopyFrom(const PivotTrialOriginSnapshot &other)
@@ -128,10 +126,10 @@ struct PivotTrialOriginSnapshot
     broker_signal_id = other.broker_signal_id;
     symbol = other.symbol;
     macro_timeframe = other.macro_timeframe;
-    deep_timeframe = other.deep_timeframe;
     micro_timeframe = other.micro_timeframe;
     active_bar_open = other.active_bar_open;
     trigger_time = other.trigger_time;
+    trigger_time_msc = other.trigger_time_msc;
     level_id = other.level_id;
     direction = other.direction;
     trigger_bid = other.trigger_bid;
@@ -149,7 +147,6 @@ struct PivotTrialOriginSnapshot
     structural_stop_loss = other.structural_stop_loss;
     structural_take_profit = other.structural_take_profit;
     levels.CopyFrom(other.levels);
-    features.CopyFrom(other.features);
   }
 };
 
@@ -297,13 +294,14 @@ struct PivotTrialEntry
   PivotLevelIds level_id;
   SignalTypes direction;
   datetime declared_time;
+  long declared_time_msc;
   datetime entry_time;
+  long entry_time_msc;
   datetime origin_expiry_time;
   bool boundary_available;
   double boundary_price;
   double midpoint_50_price;
   bool midpoint_touched;
-  bool origin_feature_snapshot_complete;
   PivotTrialGeometry geometry;
   PivotTrialMoneyPlan money_plan;
   PivotTrialEligibilityStatuses eligibility_status;
@@ -326,13 +324,14 @@ struct PivotTrialEntry
     level_id = PIVOT_LEVEL_PP;
     direction = NO_SIGNAL;
     declared_time = 0;
+    declared_time_msc = 0;
     entry_time = 0;
+    entry_time_msc = 0;
     origin_expiry_time = 0;
     boundary_available = false;
     boundary_price = 0.0;
     midpoint_50_price = 0.0;
     midpoint_touched = false;
-    origin_feature_snapshot_complete = false;
     geometry.Reset();
     money_plan.Reset();
     eligibility_status = PIVOT_TRIAL_ELIGIBILITY_INELIGIBLE_GEOMETRY;
@@ -346,14 +345,14 @@ struct PivotTrialEntry
     level_id = other.level_id;
     direction = other.direction;
     declared_time = other.declared_time;
+    declared_time_msc = other.declared_time_msc;
     entry_time = other.entry_time;
+    entry_time_msc = other.entry_time_msc;
     origin_expiry_time = other.origin_expiry_time;
     boundary_available = other.boundary_available;
     boundary_price = other.boundary_price;
     midpoint_50_price = other.midpoint_50_price;
     midpoint_touched = other.midpoint_touched;
-    origin_feature_snapshot_complete =
-      other.origin_feature_snapshot_complete;
     geometry.CopyFrom(other.geometry);
     money_plan.CopyFrom(other.money_plan);
     eligibility_status = other.eligibility_status;
@@ -364,10 +363,12 @@ struct PivotTrialEntry
 
 struct PivotTrialOutcome
 {
+  PivotTrialEntry trial;
   string outcome_id;
   PivotTrialIdentity identity;
   SignalTypes direction;
   datetime terminal_time;
+  long terminal_time_msc;
   PivotTrialFirstTouchOutcomes first_touch;
   string terminal_reason;
   double threshold_price;
@@ -399,10 +400,12 @@ struct PivotTrialOutcome
 
   void Reset()
   {
+    trial.Reset();
     outcome_id = "";
     identity.Reset();
     direction = NO_SIGNAL;
     terminal_time = 0;
+    terminal_time_msc = 0;
     first_touch = PIVOT_TRIAL_FIRST_TOUCH_PENDING;
     terminal_reason = "";
     threshold_price = 0.0;
@@ -425,10 +428,12 @@ struct PivotTrialOutcome
 
   void CopyFrom(const PivotTrialOutcome &other)
   {
+    trial.CopyFrom(other.trial);
     outcome_id = other.outcome_id;
     identity.CopyFrom(other.identity);
     direction = other.direction;
     terminal_time = other.terminal_time;
+    terminal_time_msc = other.terminal_time_msc;
     first_touch = other.first_touch;
     terminal_reason = other.terminal_reason;
     threshold_price = other.threshold_price;

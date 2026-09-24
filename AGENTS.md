@@ -5,8 +5,8 @@ Retain trading rules; Candle visual review is deferred.
 
 ## Start Here
 
-Pivot: `HFT_Grid_AI.mq5` (`1.40`), schema `14`, `PIVOT_FRACTAL_V2`:
-Macro/Deep/Micro research and structural H1 1R broker lane.
+Pivot/Candle EAs: `2.00`, common schema `1`, Macro/Micro shared capture.
+Engines: `PIVOT_MACRO_V1` and `CANDLE_PATTERN_ATR_V2`.
 
 - [Status, plan and evidence](docs/README.md).
 - [Runtime contract](docs/architecture/market-data-broker-executor.md): read before MQL5 changes.
@@ -35,10 +35,9 @@ Macro/Deep/Micro research and structural H1 1R broker lane.
 
 ## Critical Runtime Boundaries
 
-- Defaults: `Macro_Timeframe=PERIOD_H1`, `Deep_Timeframe=PERIOD_M10`,
-  `Micro_Timeframe=PERIOD_M3`. Validate explicit supported periods with normalized
-  seconds and strict `Micro < Deep < Macro` ordering.
-- Public groups contain only time (`Broker_Session` and these three periods),
+- Defaults: Macro H1 / Micro M3; validate supported periods with `Micro < Macro`.
+  Fixed M1 structure is a separate source. No Deep input or active research path.
+- Public groups contain only time (`Broker_Session` and these two periods),
   execution (`Lot_Type`, `Lot_Strategy_Size`), export
   (`Enable_Signal_Feature_Export`, `Signal_Feature_Run_Id`), and debug
   (`Enable_Logs`, `Enable_File_Logs`). Reference-balance lot mode defaults to
@@ -49,45 +48,45 @@ Macro/Deep/Micro research and structural H1 1R broker lane.
 - Broker time owns causality, sessions and lifecycles. Pivots use previous completed
   broker candles (shift 1), never future/current sources, wall-clock aggregates or
   synthetic bars. Analysis time/Exness DST are export-only, not causal sort keys.
-- H1/deep identities are direction-independent first-consumption keys. Bid triggers
+- Macro identities are direction-independent first-consumption keys. Bid triggers
   support buys/resistance sells; PP arms on strict departure, triggers on return.
   Buys execute at Ask; sells at Bid.
-- Process H1 terminal transitions before same-tick deep discovery. Export,
-  features, virtual/deep state and offline models can never authorize, deny,
+- Process broker terminal transitions before discovery. Export,
+  features, virtual state and offline models can never authorize, deny,
   delay, resize, duplicate, close or modify the real broker order.
 - Only structural H1 1R may `OrderSend`: one FOK request per consumed origin.
   Freshly recheck session, symbol/hedging mode, permissions,
   quotes, geometry, stops/freeze, volume, margin/profit calculations and `OrderCheck`.
-  Use `HFT_GRID_AI_PIVOT_FRACTAL_V14` ownership; never adopt older-engine positions.
+  Use `HFT_GRID_AI_PIVOT_MACRO_V1` ownership; never adopt older-engine positions.
 - Immutable broker SL/TP; TP is one fresh-quote price-distance R from the
   structural stop. No trailing, break-even, partial close, resize or
   `TRADE_ACTION_SLTP`. Each accepted request owns one exact parity regardless of research eligibility.
-- Eight H1 lanes: STRUCTURAL/MIDPOINT_50 times 1R/2R/3R/5R. Midpoints enter at
-  executable halfway touch, armed while any structural lane survives bar rollover;
+- Eight Macro lanes: STRUCTURAL/MIDPOINT_50 times 1R/2R/3R/5R. Bid touches the
+  halfway level, armed while any structural lane survives bar rollover;
   untouched rows become NOT_TRIGGERED when the last structural lane exits.
-- Freeze entered eligible virtual/confirmed broker parents in both directions
-  before deep discovery; no standalone events or retroactive links. Each event
-  owns Deep/Micro features, shared 1R/2R/3R trials and link outcomes; no 5R/send.
-  Links own parent/deep directions and ALIGNED/OPPOSED; outcome direction is Deep.
-- Retain actual confirmed broker close time on existing deep links before cleanup.
-  Unresolved children censor at parent close, including at run end; later observed
-  quotes/reconciliation do not extend the parent. Other active links may continue.
-- Invalid geometry/money, capacity rejection, NOT_TRIGGERED and parent/run censors
-  stay explicit; never relabel them as losses. Reserve deep fan-out atomically,
-  or emit one CAPACITY_REJECTED event with no children. H1/parity cap: 2048;
-  deep caps: 2048 events, 4096 links, 6144 trials, 18432 outcomes.
-- Exact uncapped `h1_structural_lifecycle_seconds` requires a completed entered
-  lifecycle; same-second broker entry/close may yield zero. Ineligible,
-  not-triggered/run-censored durations are null. `m10_parent_age_seconds` is exact
-  trigger-time age. Selectors use `<= minutes * 60`; completed H1 duration is
-  retrospective, never a causal model feature.
-- Export owns six cached handles: Macro/Deep/Micro Bands and Stochastic. Fixed Bands
-  are 21/0/2.0, SMA, PRICE_WEIGHTED; Stochastic 5/3/3, MODE_SMA, STO_CLOSECLOSE.
-  Initialize/release safely, including partial initialization; no per-tick creation.
-- Twelve TSVs: `Common\Files\PivotFractalV14\runs\<run_id>\`; Macro/Deep on origins,
-  Deep/Micro on events, frozen at each trigger. Python is V14/offline only; reject
-  older schemas. Missing features affect research only. Fatal research errors
-  latch diagnostics, stop only the tester and seal FAILED/CENSORED when writable.
+- Preserve all eight Macro lanes, midpoint Bid triggers, Ask/Buy and Bid/Sell
+  entries, last-structural-exit no-touch handling, and exact accepted-request parity.
+  Invalid geometry/money, capacity refusal and run censors never become losses.
+  H1/parity active-state cap remains 2048. Deep removal never changes broker policy.
+- Tick/deal clocks retain actual milliseconds; native scheduling stays causal.
+  Completed durations are exact; no-touch/ineligible/censored durations are null.
+  Broker close time differs from later observation; retrospective facts are not
+  causal features. Parity is always excluded from target cohorts.
+- Shared capture: Macro/Micro native Stochastic 5/3/3 SMA CLOSE/CLOSE K/D,
+  weighted-price Bands 21/0/2 percent B/SMA5, ATR13/SMA5, shifts 0..5. No bandwidth.
+  Each percent B shift uses its own candle price. Freeze shift 0 at observation.
+- M1 structure keeps confirmed and live forming states separately. Warmup <=4096
+  prior closed bars; catch-up <=256 per callback. Project live state from a copy.
+  Macro adjacent zones use signal Bid and latest/outermost tested support/resistance.
+- Six shared research handles plus M1 Stochastic; reuse Micro M1's handle. Candle
+  owns a separate execution ATR. No per-tick creation; release partially initialized
+  resources safely. Missing features never veto broker execution.
+- New exports: `Common/Files/MQL5ModelDatasetV1/runs/<run_id>/`, ten Pivot or
+  eleven Candle TSVs, strict shared reader. Legacy readers/fixtures stay historical.
+  Dataset contract: [shared schema](docs/architecture/model-feature-dataset.md).
+- Failed research latches first diagnostics, stops only its tester and seals
+  FAILED/CENSORED when writable. Release research state, preserve broker ownership.
+  Shared capture receives configuration; it cannot import engine inputs/state.
 - The bounded parent chronology audit is separate from full semantic acceptance.
   Recovery uses a distinct run plus retained correction/provenance sidecars,
   preserving original data and binary labels; it is not a new tester run.

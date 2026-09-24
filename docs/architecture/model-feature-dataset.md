@@ -139,6 +139,17 @@ writable and stop only the owned tester. The diagnostic survives research cleanu
 Live broker state stays owned by the engine. A changed instrument specification
 invalidates research and requires a new run without becoming an order predicate.
 
+`gross_r` consistently measures signed price movement divided by actual-entry
+price risk. Legacy Pivot monetary R remains reproducible from retained raw facts:
+`gross_profit / abs(trials.virtual_expected_stop_loss)` for virtual/parity rows,
+and `gross_profit / quote_expected_stop_loss` for broker rows. Those monetary
+ratios can differ from price R because native profit calculations round money.
+They are derived outcomes, not interchangeable feature inputs. Reproducing the
+legacy token uses binary64 division; new decimal analysis may keep more precision.
+Pivot origin terminal `WINDOW_EXPIRED` maps to `EXPIRED`; identity and lifecycle
+boundaries remain unchanged. Immediate ineligible/censor observations now retain
+the actual millisecond clock instead of the old synthetic minimum plus one second.
+
 ### Ordered Field Specification
 
 The exact ordered field inventory and legacy mapping below are frozen with
@@ -626,7 +637,7 @@ value:s [PROVENANCE]
 ```text
 run_id:s [PROVENANCE]
 signal_id:s [PROVENANCE]
-broker_signal_id:i? [PROVENANCE]
+broker_signal_id:s? [PROVENANCE]
 level_id:s [PROVENANCE]
 pivot_raw_price:d [CAUSAL_FEATURE]
 pivot_trade_price:d [CAUSAL_FEATURE]
@@ -758,7 +769,9 @@ cross-symbol concatenation, fitted scaler or model training belongs here.
 
 Pivot keeps direction-independent first consumption, Bid/PP triggers, one fresh
 structural 1R FOK broker request, immutable SL/TP and eight virtual Macro lanes:
-STRUCTURAL/MIDPOINT_50 x 1/2/3/5R. Midpoints retain their executable touch time,
+STRUCTURAL/MIDPOINT_50 x 1/2/3/5R. Midpoints trigger on Bid, then enter at Ask
+for buys and Bid for sells, preserving the existing producer's spread behavior.
+They retain their observed touch time,
 rollover and last-structural-exit NOT_TRIGGERED behavior. They reference the
 origin snapshot, not an invented entry-time feature vector. Exact request parity
 exists even if stricter research distance eligibility is false. Deep input,

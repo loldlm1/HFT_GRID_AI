@@ -32,7 +32,7 @@ void ModelCloseWindow(const long terminal_time, const string status)
   if(g_model_source_available)
   {
     row.Clock("source_time_msc", (long)g_model_macro_source.time * 1000, true);
-    row.Clock("source_close_time_msc", (long)(g_model_macro_source.time + PeriodSeconds(g_model_config.macro)) * 1000, true);
+    row.Clock("source_close_time_msc", (long)g_model_macro_open * 1000, true);
     row.Number("source_open", g_model_macro_source.open);
     row.Number("source_high", g_model_macro_source.high);
     row.Number("source_low", g_model_macro_source.low);

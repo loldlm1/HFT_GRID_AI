@@ -49,15 +49,15 @@ struct PivotTouchCandidate
 void FinalizeExpiredPivotWindow(const PivotFractalWindowState &window,
                                 const datetime terminal_time)
 {
-  if(!PivotV14Enabled() ||
+  if(!Enable_Signal_Feature_Export ||
      window.state != PIVOT_WINDOW_VALID ||
      !window.levels.valid ||
      window.active_bar_open <= 0 ||
      g_pivot_window_terminal_exported_open == window.active_bar_open)
     return;
-  if(!PivotV14RecordWindow(window, terminal_time, "EXPIRED"))
+  if(!PivotDatasetRecordWindow(window, terminal_time, "EXPIRED"))
     return;
-  string window_id = PivotV14WindowId(_Symbol,
+  string window_id = PivotDatasetWindowId(_Symbol,
                                       window.timeframe,
                                       window.active_bar_open);
   MarkPivotSignalOriginsExportFinalized(window_id);
@@ -101,7 +101,7 @@ bool RefreshPivotWindowForRuntime(const datetime observation_time,
 
 void FinalizeActivePivotWindowsForExport()
 {
-  if(!PivotV14Enabled() ||
+  if(!Enable_Signal_Feature_Export ||
      g_pivot_fractal_window.state != PIVOT_WINDOW_VALID ||
      !g_pivot_fractal_window.levels.valid ||
      g_pivot_fractal_window.active_bar_open <= 0 ||
@@ -109,11 +109,11 @@ void FinalizeActivePivotWindowsForExport()
        g_pivot_fractal_window.active_bar_open)
     return;
 
-  if(!PivotV14RecordWindow(g_pivot_fractal_window,
+  if(!PivotDatasetRecordWindow(g_pivot_fractal_window,
                            TimeCurrent(),
                            "RUN_FINISHED"))
     return;
-  string window_id = PivotV14WindowId(_Symbol,
+  string window_id = PivotDatasetWindowId(_Symbol,
                                       g_pivot_fractal_window.timeframe,
                                       g_pivot_fractal_window.active_bar_open);
   MarkPivotSignalOriginsExportFinalized(window_id);
@@ -211,7 +211,7 @@ bool AppendPivotTouchCandidate(PivotFractalWindowState &window,
   if(total >= PIVOT_TOUCH_CANDIDATE_MAX)
   {
     if(consume_identity)
-      PivotV14RegisterDuplicateIdentity();
+      PivotDatasetRegisterDuplicateIdentity();
     return false;
   }
 
@@ -306,19 +306,18 @@ int DiscoverPivotTouchCandidates(const MqlTick &tick,
 void BuildPivotSignalFromCandidate(
   const PivotTouchCandidate &candidate,
   const MqlTick &tick,
-  const PivotContextFeatureSnapshot &shared_features,
   PivotSignal &signal_out)
 {
   signal_out.Reset();
-  signal_out.window_id = PivotV14WindowId(_Symbol,
+  signal_out.window_id = PivotDatasetWindowId(_Symbol,
                                           candidate.window.timeframe,
                                           candidate.window.active_bar_open);
-  signal_out.origin_id = PivotV14OriginId(_Symbol,
+  signal_out.origin_id = PivotDatasetOriginId(_Symbol,
                                           candidate.window.timeframe,
                                           candidate.window.active_bar_open,
                                           candidate.level_id);
   signal_out.broker_signal_id =
-    PivotV14BrokerSignalId(signal_out.origin_id);
+    PivotDatasetBrokerSignalId(signal_out.origin_id);
   signal_out.pivot_timeframe = candidate.window.timeframe;
   signal_out.active_bar_open = candidate.window.active_bar_open;
   signal_out.source_bar_open = candidate.window.source_bar_open;
@@ -327,44 +326,28 @@ void BuildPivotSignalFromCandidate(
   signal_out.level_id = candidate.level_id;
   signal_out.direction = candidate.direction;
   signal_out.trigger_time = tick.time > 0 ? tick.time : TimeCurrent();
+  signal_out.trigger_time_msc = tick.time_msc;
   signal_out.trigger_bid = tick.bid;
   signal_out.trigger_ask = tick.ask;
   double point_size = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
   if(point_size > 0.0)
     signal_out.trigger_spread_points = (tick.ask - tick.bid) / point_size;
   signal_out.levels.CopyFrom(candidate.window.levels);
-  if(shared_features.captured)
-  {
-    BuildPivotSignalFeatureSnapshot(shared_features,
-                                    candidate.level_price,
-                                    signal_out.features);
-  }
 }
 
 void ProcessPivotTouchCandidates(PivotTouchCandidate &candidates[],
                                  const int total,
                                  const MqlTick &tick)
 {
-  PivotContextFeatureSnapshot shared_features;
-  if(PivotV14Ready())
-  {
-    CapturePivotContextFeatureSnapshot(Macro_Timeframe,
-                                       Deep_Timeframe,
-                                       tick.bid,
-                                       tick.time,
-                                       shared_features);
-  }
-
   for(int i = 0; i < total; i++)
   {
     PivotSignal signal;
     BuildPivotSignalFromCandidate(candidates[i],
                                   tick,
-                                  shared_features,
                                   signal);
     if(FindPivotSignalIndex(signal.broker_signal_id) >= 0)
     {
-      PivotV14RegisterDuplicateIdentity();
+      PivotDatasetRegisterDuplicateIdentity();
       continue;
     }
     ProcessPivotSignalAttempt(signal);

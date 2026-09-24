@@ -38,7 +38,7 @@ bool ExportPivotOwnershipExecutionCheckIfNeeded(PivotSignal &signal)
   if(!signal.execution.broker_entry_confirmed ||
      signal.execution.entry_check_exported)
     return true;
-  if(!PivotV14Enabled())
+  if(!Enable_Signal_Feature_Export)
   {
     signal.execution.entry_check_exported = true;
     return true;
@@ -48,6 +48,7 @@ bool ExportPivotOwnershipExecutionCheckIfNeeded(PivotSignal &signal)
   check.phase = "OWNERSHIP";
   check.sequence = NextBrokerExecutionCheckSequence(signal);
   check.broker_time = TimeCurrent();
+  check.broker_time_msc = g_model_last_time;
   check.allowed = true;
   check.block_source = "";
   check.block_reason = "";
@@ -63,7 +64,7 @@ bool ExportPivotTerminalExecutionCheck(PivotSignal &signal)
                         signal.execution.state == EXECUTION_ORDER_FAILED;
   if(!broker_closed && !order_terminal)
     return false;
-  if(!PivotV14Enabled())
+  if(!Enable_Signal_Feature_Export)
   {
     signal.execution.terminal_check_exported = true;
     return true;
@@ -73,6 +74,7 @@ bool ExportPivotTerminalExecutionCheck(PivotSignal &signal)
   check.phase = "TERMINAL";
   check.sequence = NextBrokerExecutionCheckSequence(signal);
   check.broker_time = TimeCurrent();
+  check.broker_time_msc = g_model_last_time;
   check.allowed = false;
   check.block_source = broker_closed
                        ? "broker_close"
@@ -90,13 +92,13 @@ bool ExportPivotSignalOutcome(PivotSignal &signal)
 {
   if(signal.execution.outcome_exported)
     return true;
-  if(!PivotV14Enabled())
+  if(!Enable_Signal_Feature_Export)
   {
     signal.execution.outcome_exported = true;
     return true;
   }
 
-  bool recorded = PivotV14RecordBrokerOutcome(signal);
+  bool recorded = PivotDatasetRecordBrokerOutcome(signal);
   if(recorded)
     signal.execution.outcome_exported = true;
   return recorded;
@@ -142,31 +144,30 @@ void FinalizePivotSignalTerminalStates()
       if(!g_pivot_signals[i].execution.broker_close_confirmed ||
          g_pivot_signals[i].execution.close_time <= 0)
         continue;
-      if(PivotV14Ready())
+      if(ModelReady())
       {
-        // Hand off the authoritative close clock exactly once before removing
-        // broker bookkeeping, even if research delivery fails on this boundary.
-        RecordDeepPivotBrokerParentClose(g_pivot_signals[i]);
         UpdatePivotOrigin(g_pivot_signals[i]);
         ExportPivotOwnershipExecutionCheckIfNeeded(g_pivot_signals[i]);
         ExportPivotTerminalExecutionCheck(g_pivot_signals[i]);
         if(!FinalizeBrokerParityAtBrokerTerminal(g_pivot_signals[i]) ||
            !ExportPivotSignalOutcome(g_pivot_signals[i]))
-          PivotV14MarkFailed("CLOSED_BROKER_RESEARCH_DELIVERY_FAILED", "", 0,
+          PivotDatasetFail("CLOSED_BROKER_RESEARCH_DELIVERY_FAILED", "", 0,
                             g_pivot_signals[i].broker_signal_id);
       }
       LogPivotSignalTerminal(g_pivot_signals[i]);
       if(!PivotSignalRemoveAt(i))
-        PivotV14MarkFailed("CLOSED_BROKER_STATE_REMOVE_FAILED", "", GetLastError());
+        PivotDatasetFail("CLOSED_BROKER_STATE_REMOVE_FAILED", "", GetLastError());
       continue;
     }
     if(g_pivot_signals[i].execution.state == EXECUTION_ORDER_CANCELED ||
        g_pivot_signals[i].execution.state == EXECUTION_ORDER_FAILED)
     {
-      if(PivotV14Ready())
+      if(ModelReady())
       {
         UpdatePivotOrigin(g_pivot_signals[i]);
         ExportPivotTerminalExecutionCheck(g_pivot_signals[i]);
+        if(g_pivot_signals[i].execution.send_result_check.allowed && !g_pivot_signals[i].execution.outcome_exported)
+          ExportPivotSignalOutcome(g_pivot_signals[i]);
       }
       LogPivotSignalTerminal(g_pivot_signals[i]);
       PivotSignalRemoveAt(i);
@@ -196,6 +197,10 @@ void FinalizePivotSignalAttemptsForExport()
   for(int i = 0; i < ArraySize(g_pivot_signals); i++)
   {
     ExportPivotOwnershipExecutionCheckIfNeeded(g_pivot_signals[i]);
+    if(g_pivot_signals[i].execution.send_result_check.allowed && !g_pivot_signals[i].execution.outcome_exported)
+    {
+      if(PivotDatasetRecordBrokerOutcome(g_pivot_signals[i], true)) g_pivot_signals[i].execution.outcome_exported = true;
+    }
     g_pivot_signals[i].attempt_status = "CENSORED";
     g_pivot_signals[i].block_source = "";
     g_pivot_signals[i].block_reason = "";
