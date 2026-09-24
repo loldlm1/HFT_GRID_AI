@@ -321,6 +321,30 @@ job ID, use waits no longer than 60 seconds, and stop only that matching active
 job if its planned guard expires. Retain owned settings and raw receipts outside
 tracked source; never start a duplicate job after a waiting timeout.
 
+### Model Runtime Benchmarks
+
+The [runtime plan](../../mql5-model-runtime-optimization-plan.md) owns the current
+performance gates. Its private `s1/baseline.json` pins case settings, release
+timings, warmup exclusion and resource guards; `s1/profile-summary.json` separates
+bounded instrumented timings from release results. Never infer generated ticks
+from Tick/Timer/transaction callback counts. Compare all non-job native report
+statistics and ordered orders/deals, alongside exact common-schema TSVs.
+
+Positive execution delay is an intentional simulation choice. Decision D07 uses
+zero-delay runs for strict dataset acceptance during this performance-only plan,
+while delayed runs retain matched performance and broker-comparison value.
+An existing Candle export inconsistency can put `observed_time_msc` before a
+delayed broker close. Preserve actual times, failed validation evidence and the
+strict reader; this limitation does not prohibit delay or block optimization.
+Simulation delay alone does not establish future live execution performance.
+
+Use isolated real-EA source/binary copies for native history profiling. If the
+installed profiler opens another EA, stop that identified job and exclude it.
+Bounded counters are the plan's fallback; record overhead and use uninstrumented
+release builds for promotion. Fresh late windows have independent warmup and
+are throughput samples, not exact feature-prefix oracles. A zero-tick history
+gap is an excluded workload, never a fast benchmark.
+
 ### Full-History EURUSD Operator Gate
 
 The completed reliability work leaves full-history acceptance separate. Its

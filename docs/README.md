@@ -14,8 +14,27 @@ under ignored `.codex-artifacts/pivot-ea-rename-20260924/`,
 along with the source/binary mapping and validation receipts. Candle is unchanged.
 The framework acceptance below retains its original pre-rename source/binary pins.
 
-The current [MQL5 feature framework plan](../mql5-model-feature-framework-plan.md)
-is complete across all six sprints. The [producer handoff](research/model-feature-producer-handoff.md)
+The current [runtime optimization plan](../mql5-model-runtime-optimization-plan.md)
+is executing five ordered sprints. Sprint 1 retains immutable old/current builds,
+native reports and isolated timing profiles in
+`.codex-artifacts/model-runtime-optimization/s1/`. Three alternating measured
+week pairs after warmup use real ticks, gold, H1/M3 and 100 ms delay. Export-on
+medians: Candle 1.02 `0.857 s` / current `1.009 s`; Pivot V14 `15.395 s` /
+current `12.497 s`. Export-off medians are `0.325 / 0.267 s` and
+`0.350 / 0.337 s`, respectively. The Candle year pair is `53.453 / 63.009 s`;
+the original sub-ten-minute settings remain unknown. Increasing tick density
+and Visual indicator calculation matter; the operator's progressive slowdown
+is not yet attributed to a leak or growing application history.
+
+Positive execution delay is an intentional simulation setting. Per D07, strict
+dataset acceptance uses zero delay during this performance-only work. The
+existing Candle export can record a delayed broker close after its last quote
+observation; this is a retained export limitation, not a restriction on delayed
+testing or a blocker for these sprints. Actual clocks and strict intake stay
+unchanged. The user's stopped, unsealed operator dataset is retained.
+
+The completed [MQL5 feature framework plan](../mql5-model-feature-framework-plan.md)
+covers all six earlier sprints. The [producer handoff](research/model-feature-producer-handoff.md)
 defines intake, legacy mapping, accepted source/binary pins and the private
 consumer evidence bundle for later backend planning. Sprint 1 froze the
 [new producer contract](architecture/model-feature-dataset.md) and accepted

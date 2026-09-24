@@ -14,6 +14,11 @@ its original filenames and build pins. Use the current
 [environment runbook](docs/environment/mt5-agentic-workflows.md) for new builds;
 the engine ID and dataset contract remain unchanged.
 
+Post-completion planning follow-up, 2026-09-24: the
+[model runtime optimization plan](mql5-model-runtime-optimization-plan.md)
+investigates the reported long-history slowdown in both engines. It is a new
+planning scope; this framework execution remains complete and is not restarted.
+
 ## 1. Outcome And Scope
 
 Turn this MQL5 repository into reusable engine-based feature capture. Separate
