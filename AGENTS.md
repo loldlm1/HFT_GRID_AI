@@ -17,10 +17,10 @@ Macro/Deep/Micro research and structural H1 1R broker lane.
 ## Skills And Execution
 
 - `planner`: proposals/saved/sprint plans; native behavior for short chat plans.
-- `$codex-agentic-stack:on-demand-skills`: bounded metadata search; inspect one
-  pinned bundle for a concrete MQL5/Python gap under local contracts.
-- `$codex-agentic-stack:understand-anything`: scoped external graphs for substantial
-  unfamiliar work; reuse fresh results, confirm source and report coverage gaps.
+- `$codex-agentic-stack:on-demand-skills`: bounded metadata search; one pinned
+  bundle for MQL5/Python gaps under local contracts.
+- `$codex-agentic-stack:understand-anything`: scoped external graphs for unfamiliar
+  cross-module work; reuse fresh graphs, verify source and report gaps.
 - `$codex-agentic-stack:token-saver-orchestrator`: RTK-first, exact failure evidence.
 - `openai-docs`: Codex guidance. No copied skills/hooks or plugin-cache edits.
 - Planning/review grants no execution. Retain scope, answers and pending questions
@@ -28,6 +28,10 @@ Macro/Deep/Micro research and structural H1 1R broker lane.
 - One agent/writer per worktree; delegate only if authorized. Stop on unexpected
   edits; preserve others' work and stage reviewed paths. Validate/commit each sprint
   before advancing; record rollback parents. Never amend/rewrite history.
+
+## Response Style
+
+- Always number main reply points; use bullets for details.
 
 ## Critical Runtime Boundaries
 
@@ -111,12 +115,12 @@ MCP cannot execute; record why. New behavior needs human tester/chart acceptance
 
 ## Documentation And Artifacts
 
-Update guide/index owners in place; new docs need a distinct purpose.
-Keep AGENTS within 160 lines / 8 KiB and current status only in `docs/README.md`.
-Keep one current/latest plan. Retire superseded tracked docs after migrating
-unique facts and Git commit/path recovery. Keep evidence for current behavior,
-open gates and downstream contracts; preserve dated facts/hashes, changing only
-navigation or explicit annotations. Never restart old plans.
+Edit guide/index owners in place; new docs need distinct purposes.
+AGENTS: max 160 lines / 8 KiB. Current status: `docs/README.md` only.
+Keep one current plan. Retire superseded tracked docs after preserving unique
+facts and Git commit/path recovery. Retain current evidence, open gates and
+downstream contracts. Preserve dated facts/hashes; edit only navigation or
+explicit annotations. Never restart old plans.
 
 Validate links/anchors, versions, requirement ownership and ignores. Keep private
 data/logs/binaries/backups untracked. Use ignored `.codex-hook-state/` and
