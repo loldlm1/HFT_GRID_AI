@@ -1,11 +1,21 @@
 # Current Project State
 
-Updated 2026-09-23. Pivot EA `1.40`, strict schema `14`, engine `PIVOT_FRACTAL_V2`.
+Updated 2026-09-24. Pivot EA `1.40`, strict schema `14`, engine `PIVOT_FRACTAL_V2`.
 This index owns changing status; guides own procedures and dated evidence keeps
 its original results.
 
+The current [MQL5 feature framework plan](../mql5-model-feature-framework-plan.md)
+is authorized for six ordered sprints. Sprint 1 has frozen the
+[new producer contract](architecture/model-feature-dataset.md) and accepted
+baselines; current binaries still use the existing formats. Work is confined to
+this repository. Django implementation and live rollout remain excluded.
+Sprint 1 checks pass: 31 local links, 12 table descriptors, 472 typed raw fields,
+unchanged 14-file Candle/38-file Pivot include hashes, retained matching binaries
+and available gold/FX seasonal history samples. No application source has changed.
+Execution receipts: `.codex-artifacts/model-feature-framework/`.
+
 MT5 M1-M4 delivery and P1-P4 optimization are complete. The independent
-[Candle Pattern Discovery execution](../candle-pattern-discovery-plan.md) delivers
+[completed Candle Pattern Discovery execution](../candle-pattern-discovery-plan.md) delivers
 the separate EA, eight-file dataset, offline contract and PostgreSQL research. Its
 [accepted proposal](../candle-pattern-discovery-proposal.md) retains the design.
 The [Candle tool contract](../tools/candle_pattern_ml/README.md) owns its separate

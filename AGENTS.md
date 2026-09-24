@@ -1,7 +1,7 @@
 # HFT Grid AI - Project Instructions
 
-Candle: [execution contract](candle-pattern-discovery-plan.md).
-Pivot rules stay intact; Candle visual review is deferred.
+Current [execution plan](mql5-model-feature-framework-plan.md).
+Retain trading rules; Candle visual review is deferred.
 
 ## Start Here
 
