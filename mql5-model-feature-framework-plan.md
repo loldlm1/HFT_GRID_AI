@@ -1,7 +1,7 @@
 # Plan: MQL5 Engine Feature Framework
 
 - **Generated:** 2026-09-24
-- **Status:** Executing - Sprint 1
+- **Status:** Executing - Sprint 2
 - **Execution authorization:** User requested execution of all six sprints on 2026-09-24, including the planned validation and commit gates.
 - **Proposal:** Not requested; this plan implements the decisions from the discussion.
 - **Complexity:** High
@@ -1080,7 +1080,7 @@ no subagent delegation and no parallel writer workstream in this plan.
 ## 15. Completion Checklist
 
 - [x] S1: Contract, baselines and current-plan ownership complete; commit gate recorded in the execution journal.
-- [ ] S2: Strict shared validator, registry and fixtures committed.
+- [x] S2: Strict shared validator, registry and fixtures complete; commit gate recorded in the execution journal.
 - [ ] S3: Candle adoption, shared services and required acceptance committed.
 - [ ] S4: Pivot migration/Deep removal and preservation evidence committed.
 - [ ] S5: Cross-engine native/fault/resource acceptance committed.

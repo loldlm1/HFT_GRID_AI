@@ -116,6 +116,19 @@ headers, scalar types, row counts and referenced identities are strict.
 Unknown versions/columns/extensions and unsealed or failed runs are rejected.
 Summary includes `export_status`, `completion_status`, failure reason, per-file
 counts, feature-gap counts, warmup source bounds/count/fingerprint and state peaks.
+The exact summary keys are `export_status`, `completion_status`, `failure`,
+`broker_peak`, `virtual_peak`, `handle_peak`, `buffer_peak`, `feature_gap_count`,
+`warmup_count`, `warmup_first_time_msc`, `warmup_last_time_msc`,
+`warmup_fingerprint`, `warmup_status`, `first_time_msc`, `last_time_msc`, clock
+companions for the four clock keys, and `rows_<filename>` for each active
+non-summary table. KV metadata uses `NONE` for absent warmup bounds and all their
+companions; row-level nullable fields use `\N`. The warmup's last source bar must
+precede the first observed run tick. Precision and clock arithmetic apply to these
+metadata clocks too. Warmup states are COMPLETE, TRUNCATED, PARTIAL or UNAVAILABLE.
+Common enums and each field's classification/nullability are included in the
+generated JSON contract. Virtual eligibility uses ELIGIBLE, NOT_TRIGGERED,
+CAPACITY_REJECTED or the named INELIGIBLE reason; broker admission uses
+ACCEPTED/REJECTED. Terminal status remains separate from admission.
 Successful runs have an OK/NATURAL seal; a completed run may contain explicitly
 censored terminal trials. SHA-256 source hashes are recorded by the reader;
 files changed during validation invalidate its result.

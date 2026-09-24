@@ -11,7 +11,12 @@ baselines; current binaries still use the existing formats. Work is confined to
 this repository. Django implementation and live rollout remain excluded.
 Sprint 1 checks pass: 31 local links, 12 table descriptors, 472 typed raw fields,
 unchanged 14-file Candle/38-file Pivot include hashes, retained matching binaries
-and available gold/FX seasonal history samples. No application source has changed.
+and available gold/FX seasonal history samples. EA source/binaries are unchanged.
+Sprint 2 adds the [shared local validator](../tools/model_dataset/README.md):
+58 contract/feature/clock/engine tests pass, along with the unchanged 44 Candle
+and 51 Pivot tests. Generated MQL/JSON descriptors match the frozen 472-field
+inventory. The new header is still an unused evidence artifact; native adoption
+and compilation begin in Sprint 3.
 Execution receipts: `.codex-artifacts/model-feature-framework/`.
 
 MT5 M1-M4 delivery and P1-P4 optimization are complete. The independent
