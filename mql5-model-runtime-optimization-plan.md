@@ -1,7 +1,7 @@
 # Plan: MQL5 Model Runtime Optimization
 
 - **Generated:** 2026-09-24
-- **Status:** In progress - Sprint 3.
+- **Status:** In progress - Sprint 4 validated; commit gate pending.
 - **Execution authorization:** The user requested execution of all five sprints,
   including the planned validation and commit gates, on 2026-09-24. Earlier
   authorization to stop the current Candle tester if needed remains applicable.
@@ -565,7 +565,7 @@ continue only independent authorized work while it is unanswered.
 
 - [x] Execute S1, validate, create exactly one commit and record its parent.
 - [x] Execute S2 only after S1, with the same validation/commit/rollback gate.
-- [ ] Execute S3 only after S2, with the same gate.
+- [x] Execute S3 only after S2, with the same gate.
 - [ ] Execute S4 only after S3, with the same gate.
 - [ ] Execute S5 only after S4 and record full-history outcomes for both engines.
 - [ ] Retain human chart, broker-feed and recovered-run gates in the index;
@@ -632,7 +632,7 @@ continue only independent authorized work while it is unanswered.
 ### Sprint 3
 
 - Implementation and validation passed; rollback parent: `c9ee8b4`.
-  Commit gate follows the reviewed diff.
+  Committed as `3b2ba9b`; full commit/rollback receipt is in the execution journal.
 - The canonical descriptor generates unique table-qualified raw-field IDs,
   clock-companion offsets and bounded role/shift/level groups. Checked indexed
   access rejects wrong tables, types and offsets. Field choices and layouts are
@@ -679,3 +679,41 @@ continue only independent authorized work while it is unanswered.
   regenerated MQL header, source/EX5 pins and local links. OS allocation and
   short-write faults retain focused checked-path review; no native injection
   hook exists. All broker logic/callback ordering remains unchanged.
+
+### Sprint 4
+
+- Implementation and automated validation passed; rollback parent: `3b2ba9b`.
+  Record the resulting sprint commit in the execution journal before S5.
+- The profile implicates `pivot_trial_matrix_lifecycle.mqh`, a directly reached
+  Pivot state helper within S4 scope. Copy-B01 reads active/pending fields before
+  copying and passes trials by const reference in the hot resolver. Its isolated
+  week profile matches the release dataset/broker facts and identifies 7,011,961
+  resolver calls over 427,713 ticks. Profile overhead is excluded from timings.
+- Final touch-B02 extracts the existing pure readiness/threshold calculation.
+  Non-touch ticks avoid outcome construction; the resolver retains reset-on-false
+  for broker parity. Eligibility, quote validity, strict second-based entry guard,
+  TP/SL exclusivity, Bid/Ask sides, prices and outcome payload are unchanged.
+  Transactional copies remain for actual activation. Reverse iteration and stable
+  removal remain; no array-element reference survives mutation.
+- Three alternating release pairs after warmup: week `12.362 -> 1.212 s`,
+  month `58.294 -> 5.784 s`, late week `19.413 -> 1.631 s`. Raw samples/ranges
+  are in `s4/performance.json`; the reductions are 90.2%, 90.1% and 91.6%.
+  Day/week/month virtual peaks are 64/84/101 and late week 61, below the unchanged
+  2048 cap. Structural-survival scans remain bounded by active occupancy.
+- Exact TSV bytes, ordered broker reports/non-job statistics, strict intake and
+  matching-start feature prefixes pass. The matrix covers H2/M3, H1/M1, partial
+  warmup, gold/FX seasonal cases, export-off, Visual and 100 ms delay. Native
+  receipts and comparisons are in `s4/validation.json`; D07 remains unchanged.
+- Candle lifecycle source/binary is unchanged. Prior native close-history costs
+  are 1.142 ms over 979 early calls and 2.001 ms over 1591 late calls. Position
+  histories retain a 64-deal cap, confirmed-entry fast paths and bounded active
+  extents. No material safe history-cache change is justified. Pivot history
+  selection also remains unchanged; its measured close work is under 2 ms per
+  profiled week. Native selection complexity is not claimed constant.
+- `s4/lifecycle-assessment.json` records each engine's disposition;
+  `s4/static-validation.json` traces unchanged include topology, Candle closure,
+  canonical schema/shared sources/Python, broker isolation and exact references.
+  Reuse the unchanged S3 76-test/fault/feature evidence. Pivot's regenerated EX5
+  compiles on MetaEditor 6184 AVX2 with zero errors/warnings; pins are in
+  `s4/build-final.json`. Resource snapshots retain process-lifetime HWM limits;
+  they do not prove leak freedom. No new dependency, harness or live rollout.

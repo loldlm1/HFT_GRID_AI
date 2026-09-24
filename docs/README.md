@@ -1,6 +1,6 @@
 # Current Project State
 
-Updated 2026-09-24. Both EAs are `2.00`, common schema `1`: Pivot
+Updated 2026-09-25. Both EAs are `2.00`, common schema `1`: Pivot
 `PIVOT_MACRO_V1` and Candle `CANDLE_PATTERN_ATR_V2`.
 This index owns changing status; guides own procedures and dated evidence keeps
 its original results.
@@ -54,8 +54,26 @@ Both release EAs compile with zero errors/warnings on MetaEditor 6184 AVX2.
 Current source/EX5 pins: `s3/build-batch-b02.json`; validation/performance and
 retained native-injection limits are in the adjacent receipts. Historical B03
 dataset folders are unavailable locally; the wider comparisons use freshly
-recreated runs from the pinned current-schema binaries. S4 lifecycle work and
-S5 full-history acceptance remain outstanding.
+recreated runs from the pinned current-schema binaries. S3 is committed as
+`3b2ba9b`.
+
+Runtime S4 removes measured Pivot trial-state copying and outcome construction
+on quotes that reach neither threshold. Transactional activation copies, exact
+threshold guards, reverse lifecycle order and broker logic remain intact.
+Three alternating measured pairs after warmup lower week/month/late-week medians
+from `12.362 / 58.294 / 19.413 s` to `1.212 / 5.784 / 1.631 s` (90.2% / 90.1% /
+91.6%). The month has 1,940,962 ticks and peaks at 101 virtual lanes; the late
+week has 1,586,731 ticks and 61 lanes. Seven handles and the 256-row buffer peak
+remain unchanged. Exact TSV/broker/statistics, strict intake and feature-prefix
+checks pass across the repeated intervals, role/season variants, partial warmup,
+export-off, Visual and 100 ms cases. Candle's source closure and EX5 are unchanged:
+its bounded history-close work measured only 1.142/2.001 ms in the earlier
+early/late profiles, so no further lifecycle optimization is justified.
+S4 receipts: `.codex-artifacts/model-runtime-optimization/s4/`, including
+`build-final.json`, `validation.json`, `performance.json` and
+`lifecycle-assessment.json`. Pivot compiles with zero errors/warnings on
+MetaEditor 6184 AVX2. Full-history acceptance remains the S5 gate; focused
+timings and sampled process memory do not establish full-history performance.
 
 The completed [MQL5 feature framework plan](../mql5-model-feature-framework-plan.md)
 covers all six earlier sprints. The [producer handoff](research/model-feature-producer-handoff.md)

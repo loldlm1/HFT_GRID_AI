@@ -546,15 +546,19 @@ bool ActivatePendingMidpointLanesAtTick(const MqlTick &tick)
   bool complete = true;
   for(int i = PivotTrialActiveStateCount() - 1; i >= 0; i--)
   {
-    PivotTrialActiveState state;
-    if(!CopyPivotTrialActiveStateAt(i, state) || !state.active ||
-       !state.pending_entry)
+    if(!g_pivot_trial_active_states[i].active ||
+       !g_pivot_trial_active_states[i].pending_entry)
       continue;
-    if(!PivotTrialOriginHasActiveStructuralLane(state.trial.identity.origin_id,
-                                                state.trial.direction) ||
-       !PivotTrialMidpointTouched(state.trial.direction,
+    if(!PivotTrialOriginHasActiveStructuralLane(g_pivot_trial_active_states[i].trial.identity.origin_id,
+                                                g_pivot_trial_active_states[i].trial.direction) ||
+       !PivotTrialMidpointTouched(g_pivot_trial_active_states[i].trial.direction,
                                   tick.bid,
-                                  state.trial.midpoint_50_price))
+                                  g_pivot_trial_active_states[i].trial.midpoint_50_price))
+      continue;
+
+    // Keep the transactional copy only when this quote can activate the lane.
+    PivotTrialActiveState state;
+    if(!CopyPivotTrialActiveStateAt(i, state))
       continue;
 
     BrokerExecutionCheck facts;
@@ -745,24 +749,36 @@ bool DeclareInitialPivotTrialLanes(PivotSignal &signal,
   return complete && signal.h1_lanes_declared;
 }
 
-bool ResolvePivotTrialFirstTouch(const PivotTrialEntry &trial,
-                                 const MqlTick &tick,
-                                 PivotTrialOutcome &outcome_out)
+bool PivotTrialFirstTouchReady(const PivotTrialEntry &trial,
+                              const MqlTick &tick,
+                              double &exit_price,
+                              bool &tp_touched)
 {
-  outcome_out.Reset();
+  exit_price = 0.0;
+  tp_touched = false;
   if(trial.eligibility_status != PIVOT_TRIAL_ELIGIBILITY_ACTIVE ||
      !trial.geometry.valid || !trial.money_plan.complete ||
      !PivotTrialQuoteValid(tick) || trial.entry_time <= 0 ||
      tick.time <= trial.entry_time)
     return false;
-  double exit_price = PivotTrialExitPriceFromTick(trial.direction, tick);
-  bool tp_touched = trial.direction == BULLISH
-                    ? exit_price >= trial.geometry.take_profit_price
-                    : exit_price <= trial.geometry.take_profit_price;
+  exit_price = PivotTrialExitPriceFromTick(trial.direction, tick);
+  tp_touched = trial.direction == BULLISH
+               ? exit_price >= trial.geometry.take_profit_price
+               : exit_price <= trial.geometry.take_profit_price;
   bool sl_touched = trial.direction == BULLISH
                     ? exit_price <= trial.geometry.stop_loss_price
                     : exit_price >= trial.geometry.stop_loss_price;
-  if(tp_touched == sl_touched)
+  return tp_touched != sl_touched;
+}
+
+bool ResolvePivotTrialFirstTouch(const PivotTrialEntry &trial,
+                                 const MqlTick &tick,
+                                 PivotTrialOutcome &outcome_out)
+{
+  outcome_out.Reset();
+  double exit_price = 0.0;
+  bool tp_touched = false;
+  if(!PivotTrialFirstTouchReady(trial, tick, exit_price, tp_touched))
     return false;
   outcome_out.outcome_id = PivotTrialOutcomeId(trial.identity.trial_id);
   outcome_out.identity.CopyFrom(trial.identity);
@@ -902,12 +918,17 @@ void ProcessPivotTrialLanesTick(const MqlTick &tick)
   // same-tick structural exit own the boundary for still-pending midpoints.
   for(int i = PivotTrialActiveStateCount() - 1; i >= 0; i--)
   {
-    PivotTrialActiveState state;
-    if(!CopyPivotTrialActiveStateAt(i, state) || !state.active ||
-       state.pending_entry)
+    if(!g_pivot_trial_active_states[i].active ||
+       g_pivot_trial_active_states[i].pending_entry)
+      continue;
+    // Most quotes reach neither threshold; construct the outcome only on touch.
+    double exit_price = 0.0;
+    bool tp_touched = false;
+    if(!PivotTrialFirstTouchReady(g_pivot_trial_active_states[i].trial,
+                                 tick, exit_price, tp_touched))
       continue;
     PivotTrialOutcome outcome;
-    if(!ResolvePivotTrialFirstTouch(state.trial, tick, outcome))
+    if(!ResolvePivotTrialFirstTouch(g_pivot_trial_active_states[i].trial, tick, outcome))
       continue;
     if(!RecordPivotTrialOutcome(outcome))
       continue;
@@ -918,13 +939,12 @@ void ProcessPivotTrialLanesTick(const MqlTick &tick)
   // remains active for the same origin and direction.
   for(int i = PivotTrialActiveStateCount() - 1; i >= 0; i--)
   {
-    PivotTrialActiveState state;
-    if(!CopyPivotTrialActiveStateAt(i, state) || !state.active ||
-       !state.pending_entry)
+    if(!g_pivot_trial_active_states[i].active ||
+       !g_pivot_trial_active_states[i].pending_entry)
       continue;
     if(!PivotTrialOriginHasActiveStructuralLane(
-         state.trial.identity.origin_id,
-         state.trial.direction) &&
+         g_pivot_trial_active_states[i].trial.identity.origin_id,
+         g_pivot_trial_active_states[i].trial.direction) &&
        !FinalizePendingMidpointLaneAt(i,
                                       tick,
                                       "STRUCTURAL_LANES_EXITED"))
