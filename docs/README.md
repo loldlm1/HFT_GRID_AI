@@ -33,6 +33,13 @@ observation; this is a retained export limitation, not a restriction on delayed
 testing or a blocker for these sprints. Actual clocks and strict intake stay
 unchanged. The user's stopped, unsealed operator dataset is retained.
 
+Runtime S1 is committed as `d7d7097`. S2's measured shared-read assessment
+retains existing native queries and bounded 4096/256 structure processing:
+no safe read-cache optimization with a demonstrated gain was established.
+Early/late M1 update costs are stable per callback. This is a measurement-only
+result; indexed row construction and trial-state processing remain the next
+measured targets. Evidence: `s2/assessment.json` in the runtime receipt directory.
+
 The completed [MQL5 feature framework plan](../mql5-model-feature-framework-plan.md)
 covers all six earlier sprints. The [producer handoff](research/model-feature-producer-handoff.md)
 defines intake, legacy mapping, accepted source/binary pins and the private

@@ -1,7 +1,7 @@
 # Plan: MQL5 Model Runtime Optimization
 
 - **Generated:** 2026-09-24
-- **Status:** In progress - Sprint 1.
+- **Status:** In progress - Sprint 2.
 - **Execution authorization:** The user requested execution of all five sprints,
   including the planned validation and commit gates, on 2026-09-24. Earlier
   authorization to stop the current Candle tester if needed remains applicable.
@@ -563,7 +563,7 @@ this plan. Do not restart the six completed framework sprints. Preserve accepted
 decisions and record any newly required question as a blocker before yielding;
 continue only independent authorized work while it is unanswered.
 
-- [ ] Execute S1, validate, create exactly one commit and record its parent.
+- [x] Execute S1, validate, create exactly one commit and record its parent.
 - [ ] Execute S2 only after S1, with the same validation/commit/rollback gate.
 - [ ] Execute S3 only after S2, with the same gate.
 - [ ] Execute S4 only after S3, with the same gate.
@@ -575,6 +575,7 @@ continue only independent authorized work while it is unanswered.
 
 ### Sprint 1
 
+- Commit: `d7d7097` (`docs(perf): pin model runtime baselines and profiling evidence`).
 - Rollback parent: `2292be7517201a41b8dde8b78e503f413c15eb31`.
 - Immutable source/EX5 closures: `s1/build-pins.json`, `s1/include-trace.json`.
   Production source and binaries are unchanged. Isolated profiled real-EA
@@ -603,3 +604,26 @@ continue only independent authorized work while it is unanswered.
   Day/week/month zero-delay exports supply canonical schema-1 baselines.
 - Resource guards and history exclusions are in `s1/baseline.json`. Production
   source/EX5 pins, include tracing and documentation checks precede the commit.
+
+### Sprint 2
+
+- Measurement-only disposition permitted by the sprint contract; no runtime
+  change or speed claim. Rollback parent: `d7d7097`.
+- `s2/assessment.json` records source inspection and early/late profile costs.
+  M1 update self time averages 0.134/0.142 microseconds per Candle observation
+  and 0.236/0.182 per Pivot observation, including the bounded warmup work.
+  No history-length growth is demonstrated in this path.
+- Existing code already separates bounded closed-bar advancement from
+  capture-only forming projection. Keep callback readiness resets, native
+  first-date/cursor queries, prior-source validation and source guards. An
+  unchanged quote/bar does not establish unchanged native availability/history;
+  replacing the cursor query with another source query has no proven benefit.
+- Indicator arrays are fixed at ten source values; catch-up allocates at most
+  257 rates/256 K values. Capture runs once per snapshot. Seven-level touch
+  tracking retains observation sequence even for repeated timestamps. No
+  per-tick indicator allocation or unbounded retained history was found.
+- No safe, material read removal was established. Retain these source paths;
+  S3 targets the measured per-field search and serialization costs instead.
+- Validation reuses identical source/EX5/include pins and S1 native strict,
+  prefix and broker receipts. Existing structure/feature tests and whitespace
+  checks complete this documentation-only gate; compilation is not required.
