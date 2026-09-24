@@ -8,6 +8,12 @@
 - **Planning baseline:** `5df19f1849d6208ddae64fa29951f0f81477aa6e` on
 `bot/pivot_points_fractal`.
 
+Post-completion naming update, 2026-09-24: the Pivot entrypoint is now
+`Pivot_Macro.mq5` / `Pivot_Macro.ex5`. The completed execution record below retains
+its original filenames and build pins. Use the current
+[environment runbook](docs/environment/mt5-agentic-workflows.md) for new builds;
+the engine ID and dataset contract remain unchanged.
+
 ## 1. Outcome And Scope
 
 Turn this MQL5 repository into reusable engine-based feature capture. Separate

@@ -5,6 +5,15 @@ Updated 2026-09-24. Both EAs are `2.00`, common schema `1`: Pivot
 This index owns changing status; guides own procedures and dated evidence keeps
 its original results.
 
+The Pivot EA entrypoint is now `Pivot_Macro.mq5`, compiled as `Pivot_Macro.ex5`
+for clear MT5 selection. The naming follow-up preserves version `2.00`, engine
+`PIVOT_MACRO_V1`, broker ownership and all executable logic/includes. MetaEditor
+6184 optimized AVX2 reports zero errors/warnings; the default compile helper and
+current guides use the new filename. The previous `HFT_Grid_AI.ex5` is retained
+under ignored `.codex-artifacts/pivot-ea-rename-20260924/`,
+along with the source/binary mapping and validation receipts. Candle is unchanged.
+The framework acceptance below retains its original pre-rename source/binary pins.
+
 The current [MQL5 feature framework plan](../mql5-model-feature-framework-plan.md)
 is complete across all six sprints. The [producer handoff](research/model-feature-producer-handoff.md)
 defines intake, legacy mapping, accepted source/binary pins and the private

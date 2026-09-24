@@ -74,7 +74,7 @@ account/community identifiers and private terminal data out of logs and commits.
 ```powershell
 $MT5_ROOT = "C:\MetaTrader 5-1"
 $METAEDITOR = Join-Path $MT5_ROOT "MetaEditor64.exe"
-$EA_ENTRYPOINT = Join-Path $MT5_ROOT "MQL5\Experts\HFT_Grid_AI\HFT_Grid_AI.mq5"
+$EA_ENTRYPOINT = Join-Path $MT5_ROOT "MQL5\Experts\HFT_Grid_AI\Pivot_Macro.mq5"
 $COMPILE_LOG = Join-Path $MT5_ROOT "MQL5\Experts\HFT_Grid_AI\logs\compile\agentic-build.log"
 $MT5_COMMON_FILES = Join-Path $env:APPDATA "MetaQuotes\Terminal\Common\Files"
 $PIVOT_RUNS_ROOT = Join-Path $MT5_COMMON_FILES "PivotFractalV14\runs"
@@ -85,7 +85,7 @@ $PIVOT_RUNS_ROOT = Join-Path $MT5_COMMON_FILES "PivotFractalV14\runs"
 ```bash
 export MT5_ROOT="/home/admin/.wine/drive_c/MetaTrader 5-1"
 export METAEDITOR="$MT5_ROOT/MetaEditor64.exe"
-export EA_ENTRYPOINT="$MT5_ROOT/MQL5/Experts/HFT_Grid_AI/HFT_Grid_AI.mq5"
+export EA_ENTRYPOINT="$MT5_ROOT/MQL5/Experts/HFT_Grid_AI/Pivot_Macro.mq5"
 export COMPILE_LOG="$MT5_ROOT/MQL5/Experts/HFT_Grid_AI/logs/compile/agentic-build.log"
 export MT5_COMMON_FILES="$HOME/.wine/drive_c/users/admin/AppData/Roaming/MetaQuotes/Terminal/Common/Files"
 export PIVOT_RUNS_ROOT="$MT5_COMMON_FILES/PivotFractalV14/runs"
@@ -107,7 +107,7 @@ retain the matching ignored binary and source hashes when available for rollback
 1. Discover the current MetaEditor schema and call `get_workspace_info` first.
    Verify allowed roots and `can_compile_file` before compiler/file operations.
 2. Call `compile_file` with the actual absolute EA path and supported target.
-3. Require `0 errors, 0 warnings`; verify a regenerated `HFT_Grid_AI.ex5` using
+3. Require `0 errors, 0 warnings`; verify a regenerated `Pivot_Macro.ex5` using
    timestamp, size and SHA-256, and retain matching source/include hashes.
 4. If MCP cannot execute, record the precise reason and use the fallback below.
    A syntax-only `/s` check or stale binary is not acceptance. If no runner works,
@@ -264,7 +264,7 @@ git diff --check
 git diff --name-only
 git diff --cached --check
 git diff --cached --name-status
-git check-ignore .codex-hook-state/probe.json .codex-artifacts/probe.txt HFT_Grid_AI.ex5 .venv/probe logs/probe.log artifacts/exness_tick_history/probe.json
+git check-ignore .codex-hook-state/probe.json .codex-artifacts/probe.txt Pivot_Macro.ex5 .venv/probe logs/probe.log artifacts/exness_tick_history/probe.json
 ```
 
 Review exact identifiers, all relative links/anchors, current version/status

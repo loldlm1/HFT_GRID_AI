@@ -6,7 +6,7 @@ The Pivot EA owns causal Macro pivot discovery, eight virtual Macro lanes and on
 structural 1R broker lane. Shared capture supplies features and dataset facts;
 engine-specific code retains order ownership and lifecycle decisions.
 
-`HFT_Grid_AI.mq5` is version `2.00`, engine `PIVOT_MACRO_V1`, common schema `1`.
+`Pivot_Macro.mq5` is version `2.00`, engine `PIVOT_MACRO_V1`, common schema `1`.
 The [shared contract](model-feature-dataset.md) owns headers, features and clocks;
 the [current index](../README.md) owns source/compile pins and acceptance gates.
 

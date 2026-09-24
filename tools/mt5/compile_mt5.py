@@ -40,7 +40,7 @@ def require_path(value: str | None, label: str) -> Path:
 
 
 def default_entrypoint(mt5_root: Path) -> Path:
-    return mt5_root / "MQL5" / "Experts" / "HFT_Grid_AI" / "HFT_Grid_AI.mq5"
+    return mt5_root / "MQL5" / "Experts" / "HFT_Grid_AI" / "Pivot_Macro.mq5"
 
 
 def default_log(entrypoint: Path, mode: str) -> Path:

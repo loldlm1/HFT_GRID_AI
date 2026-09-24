@@ -1,5 +1,5 @@
 //+------------------------------------------------------------------+
-//|                                               HFT_Grid_AI_EA    |
+//|                                                   Pivot_Macro    |
 //|                                                          loldlm1 |
 //+------------------------------------------------------------------+
 #property copyright     "https://tradingsniperpanel.com/"
@@ -7,7 +7,7 @@
 #property version       "2.00"
 #property description   "Support Contact @chu4xtrade"
 #property description   "All Rights Reserved for the Trading Sniper Team."
-#property description   "Pivot Fractal Market Data Collector And Broker Executor"
+#property description   "Pivot Macro Model Feature Collector And Broker Executor"
 
 #include "services/trading_tools.mqh"
 #include "services/trading_management.mqh"

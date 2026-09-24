@@ -21,7 +21,14 @@ program or deployment was changed or certified by this refactor.
 | Default roles | Macro H1, Micro M3; fixed M1 structure source |
 | Producer root | `Common/Files/MQL5ModelDatasetV1/runs/<run_id>/` |
 
-Accepted B03 binaries are pinned independently of documentation commits:
+The current Pivot entrypoint is `Pivot_Macro.mq5` / `Pivot_Macro.ex5`. The
+2026-09-24 naming follow-up retains version `2.00`, engine `PIVOT_MACRO_V1` and
+broker/dataset semantics. Its native compile, unchanged executable-source/include
+checks and replacement source/binary pin are retained in
+`.codex-artifacts/pivot-ea-rename-20260924/`. Current compile procedures use that
+name; historical tester settings still identify the entrypoint used at the time.
+
+The original accepted B03 binaries remain pinned for the recorded native runs:
 
 | Entrypoint | EX5 bytes | SHA-256 |
 | --- | ---: | --- |

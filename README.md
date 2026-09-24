@@ -6,7 +6,7 @@ services while retaining their own broker and virtual-lifecycle rules.
 
 | Producer | Engine | Dataset |
 | --- | --- | --- |
-| `HFT_Grid_AI.mq5` | `PIVOT_MACRO_V1` | Common schema 1, ten TSVs |
+| `Pivot_Macro.mq5` | `PIVOT_MACRO_V1` | Common schema 1, ten TSVs |
 | `Candle_Pattern_Discovery.mq5` | `CANDLE_PATTERN_ATR_V2` | Common schema 1, eleven TSVs |
 
 Both EAs are version `2.00`. Default roles are Macro H1 / Micro M3, with supported
