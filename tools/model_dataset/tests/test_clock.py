@@ -24,12 +24,23 @@ class ClockTests(unittest.TestCase):
             self.assertEqual(analysis_clock(raw,"EXNESS_SESSION"),(raw+offset*60000,offset))
             self.assertEqual(analysis_clock(raw,"FIXED_TIME_SESSIONS"),(raw,0))
 
+    def test_backward_fold_keeps_raw_instants_distinct(self):
+        first = msc("2016-11-06T05:30:00") + 123
+        second = msc("2016-11-06T06:30:00") + 123
+        self.assertEqual(analysis_clock(first, "EXNESS_SESSION")[0],
+                         analysis_clock(second, "EXNESS_SESSION")[0])
+        self.assertEqual(second-first, 3600000)
+        self.assertEqual(analysis_clock(second, "EXNESS_SESSION")[0] % 1000, 123)
+
     def test_coverage_and_unknown_policy(self):
         for instant,policy in ((msc("2006-12-31T12:00:00"),"EXNESS_SESSION"),(msc("2100-01-01T00:00:00"),"EXNESS_SESSION"),(1,"UNKNOWN"),(0,"FIXED_TIME_SESSIONS")):
             with self.assertRaises(ValueError): analysis_clock(instant,policy)
 
 
 class ClockWireTests(RunFixtureCase):
+    def test_session_cannot_claim_another_time_basis(self):
+        self.reject(lambda t: next(r for r in t["run_manifest.tsv"] if r["key"] == "broker_time_basis").update(value="UTC_SHIFT_0"))
+
     def test_exness_fixture(self):
         make_run(self.path,session="EXNESS_SESSION")
         with ModelRun(self.path) as run: self.assertEqual(run.manifest['broker_time_basis'],'UTC_SHIFT_0')

@@ -40,7 +40,8 @@ void ModelFail(const string reason)
 bool ModelFlush(const int file, const bool sealing = false)
 {
   int count = ArraySize(g_model_buffers[file].rows);
-  if(count == 0) return true;
+  // Final sealing must recheck even tables whose last batch already flushed.
+  if(count == 0 && !sealing) return true;
   if(g_model_failed && !sealing) return false;
   string path = g_model_root + ModelFileName(file);
   if(!FileIsExist(path, FILE_COMMON)) { ModelFail("MISSING_FILE_" + ModelFileName(file)); return false; }

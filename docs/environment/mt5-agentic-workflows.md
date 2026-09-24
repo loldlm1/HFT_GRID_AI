@@ -150,6 +150,39 @@ Record parsed compiler status and `.ex5` metadata, not the full log.
 
 ## Python Environment And Checks
 
+### Shared Model Dataset Acceptance
+
+Both current EAs use the [common schema and reader](../../tools/model_dataset/README.md).
+Compile both whenever shared includes change; retain source-closure and EX5 pins.
+Run the [current plan's native matrix](../../mql5-model-feature-framework-plan.md#11-sprint-5-cross-engine-native-acceptance)
+with fresh IDs under `Common/Files/MQL5ModelDatasetV1/runs/`. Save each job's
+JSON and XML/XLSX report before starting another job; historical reports may no
+longer be retrievable. Reused-ID initialization refusal has no tester report:
+retain its native journal and prove that every original file hash is unchanged.
+
+Use strict validation for each sealed export and independent source audits for
+weighted-price percent B, averages, native K/D and confirmed/forming structure.
+The tester records at most 32 audited snapshots and 8,192 structure source rows
+outside the strict run. Narrow FX bands need a floating-point rounding allowance
+derived from price precision and band width; retain the exact raw tokens.
+Compare complete order/deal cells, raw clock-mode rows and matching-start feature
+prefixes. Compare cross-engine values only for identical quotes, bars, profiles
+and warmup source; an absent matching observation supplies no equality evidence.
+
+Faults target fresh disposable exports only: retain the original file before
+removing it or corrupting its header. Include an already-flushed manifest in a
+final-seal case. Require one retained diagnostic, FAILED/CENSORED when writable,
+zero tester score and strict-reader refusal. Preserve broker ownership and all
+failed originals. Ordinary feature gaps must leave broker processing intact.
+
+For bounded resource comparisons, use the same interval, lot settings, source and
+compiler configuration. Record native elapsed time, actual ticks, active-state
+caps/peaks, buffer and handle peaks, dataset bytes and sampled process RSS/CPU.
+Wine process lifetime HWM may include earlier jobs; distinguish it from sampled
+RSS for this case. One paired interval establishes neither a speed guarantee nor
+full-history memory stability. If MT5 advances an early start to the interval's
+end, record its zero-tick rejection and predeclare a later partial-warmup case.
+
 ### Independent Candle Acceptance
 
 Compile `Candle_Pattern_Discovery.mq5` through the same MetaEditor preflight and

@@ -36,7 +36,23 @@ exception. Candle's shared-include regression and export-on/off pair each match
 all 574 order/deal rows. Native feature audits pass for all three exported cases.
 The 63 shared and 51 legacy Pivot tests pass; unchanged 44 legacy Candle checks
 retain their Sprint 3 pass. Exact source/EX5 pins are in `s4/build-b02.json`.
-Sprint 5's seasonal, prefix, failure and resource matrix remains pending.
+Sprint 5 passes the final B03 automated matrix: 21 strict native exports plus
+three export-off cases cover both engines' summer, winter, March gold/FX,
+October, H2/M3, H1/M1 and Candle M6 roles. Two partial-history runs use 1,373
+prior M1 bars; ordinary feature gaps retain broker outcomes. All sampled source
+audits pass. Matching-start one-week runs retain all 58 Pivot/298 Candle feature
+rows from their one-day prefixes, and their complete broker reports match fresh
+old-build baselines. Six missing-file/header/final-seal faults reject intake;
+two reused-ID attempts preserve every original hash. The final writer checks
+already-flushed files again at seal, and the reader checks latest/outermost
+touch identity, Macro reset and incomplete forming-state exclusion.
+Both final EAs compile with zero errors/warnings; all 74 shared tests pass.
+Single-pair one-week native times: Pivot 17.836 -> 15.044 seconds, Candle
+2.545 -> 2.635 seconds. Resource receipts distinguish sampled RSS from process
+lifetime HWM; these checks establish no full-history or speed guarantee.
+Exact final source/EX5 pins and evidence: `s5/build-b03.json` and
+`s5/validation.json` within the execution receipt directory below. Human chart,
+full-history and broker-feed gates remain open; Sprint 6 handoff is pending.
 Execution receipts: `.codex-artifacts/model-feature-framework/`.
 
 MT5 M1-M4 delivery and P1-P4 optimization are complete. The independent

@@ -47,5 +47,13 @@ class StructureTests(unittest.TestCase):
 
 
 class StructureWireTests(RunFixtureCase):
+    def test_pending_catchup_keeps_forming_unavailable(self):
+        row = self.tables['feature_snapshots.tsv'][0]
+        row.update(complete='0', structure_complete='0', structure_reason='CATCHUP_PENDING', forming_status='UNAVAILABLE')
+        next(r for r in self.tables['run_summary.tsv'] if r['key']=='feature_gap_count')['value']='1'
+        self.validate()
+        self.reject(lambda t: row.update(forming_status='FORMING', forming_kind='HIGH', forming_class='HIGH',
+                                          forming_price='101', forming_pivot_time_msc=str(NOW)))
+
     def test_future_confirmed_state_rejected(self):
         self.reject(lambda t: t['feature_snapshots.tsv'][0].update(confirmed_high_kind='HIGH',confirmed_high_class='HH',confirmed_high_price='102',confirmed_high_pivot_time_msc=str(NOW-60000),confirmed_high_confirmation_time_msc=str(NOW+60000)))

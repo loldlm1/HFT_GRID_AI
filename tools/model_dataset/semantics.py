@@ -99,8 +99,31 @@ def validate_snapshot(run, row, macro, micro):
         prices = tuple(number(window[f"trade_{level.lower()}_price"]) for level in LEVELS)
         zone, lower, upper = pivot_zone(number(row["bid"]), prices)
         require(row["signal_zone"] == zone and number(row["zone_lower_price"]) == lower and number(row["zone_upper_price"]) == upper, "Signal zone mismatch")
-        for level, price in zip(LEVELS, prices, strict=True):
-            require(number(row[f"pivot_{level.lower()}_price"]) == price, "Context changed ladder")
+        touched = []
+        for index, (level, price) in enumerate(zip(LEVELS, prices, strict=True)):
+            prefix = f"pivot_{level.lower()}"
+            require(number(row[prefix + "_price"]) == price, "Context changed ladder")
+            facts = [row[prefix + suffix] for suffix in ("_touch_time_msc", "_touch_sequence", "_role")]
+            require(all(v is None for v in facts) or all(v is not None for v in facts), "Partial pivot touch")
+            if facts[0] is None:
+                require(row[prefix + "_reclaimed"] == row[prefix + "_gap_cross"] == "0", "Untested pivot has touch flags")
+                continue
+            at, sequence, role = integer(facts[0]), integer(facts[1]), facts[2]
+            require(integer(window["open_time_msc"]) <= at <= now and 0 < sequence <= integer(row["sequence"]), "Touch outside causal Macro window")
+            allowed_roles = {"SUPPORT", "RESISTANCE"} if index == 3 else {"SUPPORT" if index < 3 else "RESISTANCE"}
+            require(role in allowed_roles, "Pivot touch role mismatch")
+            if index == 3:
+                require(window["pp_arm_time_msc"] is not None and integer(window["pp_arm_time_msc"]) <= at and window["pp_role"] == role, "PP touch lacks departure")
+            touched.append((sequence, abs(index - 3), level))
+        if touched:
+            latest = max((sequence, depth) for sequence, depth, _ in touched)
+            require(row["tested_level"] in {level for sequence, depth, level in touched if (sequence, depth) == latest}, "Tested pivot is not latest outermost touch")
+            prefix = "pivot_" + row["tested_level"].lower()
+            for suffix in ("touch_time_msc", "role", "reclaimed", "gap_cross"):
+                require(row["tested_" + suffix] == row[prefix + "_" + suffix], "Selected pivot touch facts disagree")
+            require(row["tested_sequence"] == row[prefix + "_touch_sequence"], "Selected pivot sequence disagrees")
+        else:
+            require(row["tested_level"] is None, "Selected pivot was never touched")
         if row["tested_level"] is None:
             require(row["signal_vs_tested_pivot"] == "UNTESTED", "Missing tested pivot is not UNTESTED")
             require(all(row[key] is None for key in ("tested_price", "tested_role", "tested_distance_price", "tested_distance_points", "tested_age_ms", "tested_touch_time_msc", "tested_sequence", "tested_reclaimed", "tested_gap_cross")), "Untested context contains touch facts")
@@ -130,6 +153,8 @@ def validate_snapshot(run, row, macro, micro):
         require(integer(row["structure_observed_bar_time_msc"]) <= now and row["forming_status"] != "UNAVAILABLE", "Missing current structure source")
         if row["structure_last_closed_time_msc"] is not None:
             require(integer(row["structure_last_closed_time_msc"]) < integer(row["structure_observed_bar_time_msc"]), "Structure committed a forming candle")
+    else:
+        require(row["forming_status"] == "UNAVAILABLE", "Incomplete structure exposes a live candidate")
     if row["forming_status"] == "FORMING":
         validate_class(row["forming_kind"], row["forming_class"])
         require(number(row["forming_price"]) > 0 and integer(row["forming_pivot_time_msc"]) <= now, "Invalid forming pivot")
