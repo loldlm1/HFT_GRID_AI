@@ -59,9 +59,11 @@ def validate(run):
         require(all(check[k] == broker[k] for k in ("entry_price", "sl", "tp", "volume")), "Request geometry mismatch")
         if accepted:
             require(check["allowed"] == "1" and check["send_retcode"] in {"10008", "10009"} and (check["order_ticket"] or check["deal_ticket"]), "Unconfirmed accepted request")
+        require(integer(check["time_msc"]) >= integer(attempt["decision_time_msc"]), "Request precedes decision")
         for t in trials:
             require(t["entry_policy"] == attempt["entry_type"], "Candle entry policy mismatch")
-            require(t["declared_time_msc"] == attempt["decision_time_msc"], "Candle declaration changed")
+            # Submission refreshes the quote after the immutable decision capture.
+            require(t["declared_time_msc"] == check["time_msc"], "Candle declaration/request mismatch")
             if t["deadline_time_msc"] is not None:
                 require(integer(t["deadline_time_msc"]) == integer(t["declared_time_msc"]) + macro_ms, "Reference deadline mismatch")
             if t["role"] != "BROKER":

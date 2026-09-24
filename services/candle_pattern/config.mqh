@@ -14,74 +14,26 @@ input string Signal_Feature_Run_Id = "";
 input group "+= Developer Debug =+"
 input bool Enable_Logs = false;
 
-const long CANDLE_MAGIC = 26092201;
+long g_candle_magic = 0;
+long g_candle_last_time = 0;
 // Required by the shared Pivot execution lot planner; never use live balance.
 const double PIVOT_EXECUTION_REFERENCE_BALANCE = 1000000.0;
 const int CANDLE_ATR_PERIOD = 13;
 const int CANDLE_BROKER_CAP = 2048;
 const int CANDLE_VIRTUAL_CAP = 6144;
 const int CANDLE_HISTORY_CAP = 64;
-const int CANDLE_RAW_SHIFTS = 11;
-const int CANDLE_EXPORT_SHIFTS = 6;
-const int CANDLE_SMA_PERIOD = 5;
-const double CANDLE_STATE_TOLERANCE = 0.0000001;
-
-enum CandleFileIds
-{
-  CANDLE_MANIFEST = 0, CANDLE_WINDOWS = 1, CANDLE_SIGNALS = 2,
-  CANDLE_ATTEMPTS = 3, CANDLE_TRIALS = 4, CANDLE_CHECKS = 5,
-  CANDLE_OUTCOMES = 6, CANDLE_SUMMARY = 7
-};
 
 int g_atr_handle = INVALID_HANDLE;
-int g_candle_bands[2];
-int g_candle_stochastic[2];
 int g_macro_seconds = 0;
 int g_micro_seconds = 0;
 long g_candle_sequence = 0;
 datetime g_last_micro_bar = 0;
 bool g_candle_stopping = false;
 
-bool CandleNumberValid(const double value)
-{
-  return MathIsValidNumber(value) && value != EMPTY_VALUE;
-}
-
-string CandleNumber(const double value)
-{
-  return CandleNumberValid(value) ? StringFormat("%.17g", value) : "\\N";
-}
-
-string CandleInteger(const long value) { return IntegerToString(value); }
-string CandleBoolean(const bool value) { return value ? "1" : "0"; }
-string CandleNullable(const string value) { return value == "" ? "\\N" : value; }
-
-bool CandleCellValid(const string value)
-{
-  return StringFind(value, "\t") < 0 && StringFind(value, "\r") < 0 &&
-         StringFind(value, "\n") < 0 && StringFind(value, "\"") < 0;
-}
-
-void CandleCell(string &row, const string value)
-{
-  if(row != "") row += "\t";
-  row += value;
-}
-
 string CandleDirection(const int direction) { return direction > 0 ? "BUY" : "SELL"; }
 string CandleCategory(const int pattern_direction, const int direction)
 {
   return pattern_direction == direction ? "ALIGNED" : "OPPOSED";
-}
-
-string CandleLevel(const int level)
-{
-  switch(level)
-  {
-    case 0: return "S3"; case 1: return "S2"; case 2: return "S1";
-    case 3: return "PP"; case 4: return "R1"; case 5: return "R2"; case 6: return "R3";
-  }
-  return "";
 }
 
 bool CandleTimeframeSupported(const ENUM_TIMEFRAMES timeframe)
@@ -99,8 +51,8 @@ bool CandleTimeframeSupported(const ENUM_TIMEFRAMES timeframe)
 
 bool CandleTickValid(const MqlTick &tick)
 {
-  return tick.time > 0 && tick.time_msc > 0 && CandleNumberValid(tick.bid) &&
-         CandleNumberValid(tick.ask) && tick.bid > 0.0 && tick.ask >= tick.bid;
+  return tick.time > 0 && tick.time_msc > 0 && ModelNumberValid(tick.bid) &&
+         ModelNumberValid(tick.ask) && tick.bid > 0.0 && tick.ask >= tick.bid;
 }
 
 bool CandleAtr(double &current, double &completed, datetime &source_time, const datetime decision_time)
@@ -113,8 +65,8 @@ bool CandleAtr(double &current, double &completed, datetime &source_time, const 
      CopyBuffer(g_atr_handle, 0, 0, 2, values) != 2 || source_time <= 0 ||
      source_time + g_micro_seconds > decision_time)
     return false;
-  if(CandleNumberValid(values[1]) && values[1] > 0.0) current = values[1];
-  if(CandleNumberValid(values[0]) && values[0] > 0.0) completed = values[0];
+  if(ModelNumberValid(values[1]) && values[1] > 0.0) current = values[1];
+  if(ModelNumberValid(values[0]) && values[0] > 0.0) completed = values[0];
   return completed != EMPTY_VALUE;
 }
 

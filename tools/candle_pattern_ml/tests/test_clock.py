@@ -121,7 +121,7 @@ class ClockContractTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             generated = Path(temp) / "schema.mqh"
             write_mql_header(generated)
-            source = Path(__file__).resolve().parents[3] / "services/candle_pattern/schema.mqh"
+            source = Path(__file__).resolve().parent / "fixtures/schema_v3.mqh"
             self.assertEqual(generated.read_bytes(), source.read_bytes())
         for filename, columns in LEGACY_TABLE_COLUMNS.items():
             self.assertEqual(TABLE_COLUMNS[filename][:len(columns)], columns)

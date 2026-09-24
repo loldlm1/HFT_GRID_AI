@@ -769,6 +769,19 @@ Candle keeps completed Micro Harami/Engulfing signals, ALIGNED/OPPOSED originals
 ATR13 x 1 shift-1 stops, both broker directions, one confirmed original-SL
 re-entry before its deadline, per-entry Macro-duration expiry, actual expiry
 closure, virtual R2/R3 and exact R1 parity. Execution ATR remains independent.
+The decision snapshot freezes before submission. Submission refreshes the quote;
+the trial declaration and entry check share that refreshed timestamp, which can
+follow the decision time. Actual broker fills retain their separate deal time.
+Symbol-scoped ownership uses the `0x43414e44` namespace plus the low 32 bits of
+the UTF-8 symbol FNV-1a fingerprint; the entry comment is `CANDLE_PATTERN_ATR_V2`.
+
+Shared research indicators are cached once: Bands, Stochastic and ATR for each
+role, plus M1 Stochastic when Micro is not M1. Candle owns its separate execution
+ATR. Partial handle availability leaves the corresponding feature family null;
+it cannot gate an entry. Handles are released once on teardown or research failure.
+Tester-only source audits retain the first 32 captures and at most 8,192 M1
+observations outside the sealed run, under `MQL5ModelDatasetV1/diagnostics/`.
+These bounded input receipts support independent feature comparison.
 
 Broker costs and actual fills never become assumed virtual facts. Unknown virtual
 costs/net remain null. Rejections, ineligibility, capacity refusal, no-touch, time

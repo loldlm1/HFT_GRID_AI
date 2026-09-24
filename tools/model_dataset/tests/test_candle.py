@@ -2,6 +2,20 @@ from .test_contract import RunFixtureCase
 
 
 class CandleTests(RunFixtureCase):
+    def test_fresh_request_can_follow_frozen_decision(self):
+        for trial in self.tables['trials.tsv']:
+            for key in ('declared_time_msc', 'entry_time_msc', 'deadline_time_msc'):
+                trial[key] = str(int(trial[key]) + 1)
+        for outcome in self.tables['outcomes.tsv']:
+            for key in ('entry_time_msc', 'deadline_time_msc', 'exit_time_msc', 'observed_time_msc'):
+                outcome[key] = str(int(outcome[key]) + 1)
+        for check in self.tables['execution_checks.tsv']:
+            check['time_msc'] = str(int(check['time_msc']) + 1)
+        self.validate()
+
+    def test_request_cannot_precede_decision(self):
+        self.reject(lambda t: t['execution_checks.tsv'][0].update(time_msc=str(int(t['entry_attempts.tsv'][0]['decision_time_msc']) - 1)))
+
     def test_wrong_pattern(self):
         self.reject(lambda t:t['candle_signals.tsv'][0].update(pattern='HARAMI'))
 

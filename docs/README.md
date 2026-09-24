@@ -5,9 +5,9 @@ This index owns changing status; guides own procedures and dated evidence keeps
 its original results.
 
 The current [MQL5 feature framework plan](../mql5-model-feature-framework-plan.md)
-is authorized for six ordered sprints. Sprint 1 has frozen the
+is authorized for six ordered sprints. Sprint 1 froze the
 [new producer contract](architecture/model-feature-dataset.md) and accepted
-baselines; current binaries still use the existing formats. Work is confined to
+baselines. Work is confined to
 this repository. Django implementation and live rollout remain excluded.
 Sprint 1 checks pass: 31 local links, 12 table descriptors, 472 typed raw fields,
 unchanged 14-file Candle/38-file Pivot include hashes, retained matching binaries
@@ -15,8 +15,15 @@ and available gold/FX seasonal history samples. EA source/binaries are unchanged
 Sprint 2 adds the [shared local validator](../tools/model_dataset/README.md):
 58 contract/feature/clock/engine tests pass, along with the unchanged 44 Candle
 and 51 Pivot tests. Generated MQL/JSON descriptors match the frozen 472-field
-inventory. The new header is still an unused evidence artifact; native adoption
-and compilation begin in Sprint 3.
+inventory.
+Sprint 3 adopts shared capture in Candle `2.00`, engine `CANDLE_PATTERN_ATR_V2`,
+using the eleven-file common-schema-1 profile. Native H1/M3 reference/fixed and
+H2/M3 exports validate; sampled weighted-price %B/averages, ATR/averages and live
+M1 structure match independent calculations. H1 export-on/off order/deal rows
+match exactly, and the M6/M3 run has 26 actual expiry closes. Fresh H2/M6 1.02
+baselines match all order/deal rows and retained raw lifecycle fields, including
+millisecond clocks. All 60 shared and 44 legacy Candle tests pass. MetaEditor 6184 AVX2
+reports zero errors/warnings. Pivot V14's source closure and EX5 remain unchanged.
 Execution receipts: `.codex-artifacts/model-feature-framework/`.
 
 MT5 M1-M4 delivery and P1-P4 optimization are complete. The independent
@@ -51,7 +58,7 @@ every order/deal and all statistics; only their two export input rows differ.
 Accepted reference stop risk is 99.20-100.00 for the configured 100 budget.
 Evidence and retained pre-fix binaries: `.codex-artifacts/candle-lot-normalization/`.
 
-Candle is now `1.02`, export schema `3`, with `Broker_Session` and explicit raw/
+Candle's historical `1.02`/schema `3` follow-up added `Broker_Session` and raw/
 analysis/offset clocks. Select `EXNESS_SESSION` for prepared UTC/Shift=0 Exness
 sources: `EXNESS_NEW_YORK_V1` uses US DST for every symbol, including metals,
 keeping the regular New York stock-market open at 13:30 analysis time. The default

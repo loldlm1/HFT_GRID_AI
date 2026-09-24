@@ -1,7 +1,11 @@
-# Candle Pattern Discovery
+# Historical Candle Pattern Discovery
 
-Independent `CANDLE_PATTERN_ATR_V1` producer, current schema `3`, feature set
-`candle_pattern_macro_micro_v1`. Pivot V14 intake and research remain separate.
+This package validates historical `CANDLE_PATTERN_ATR_V1` schemas `1`/`2`/`3`,
+feature set `candle_pattern_macro_micro_v1`. Candle 2.00 uses the
+[shared producer contract](../../docs/architecture/model-feature-dataset.md)
+and [model dataset reader](../model_dataset/README.md). The following runtime and
+wire descriptions document the retained 1.02 producer and earlier source runs.
+Pivot V14 intake and research remain separate.
 The [accepted proposal](../../candle-pattern-discovery-proposal.md) owns rationale;
 the [project index](../../docs/README.md) owns current acceptance status.
 
@@ -167,7 +171,7 @@ Generate wire headers only with:
 
 ```bash
 python3 tools/candle_pattern_ml/schema_contract.py \
-  --write-mql-header services/candle_pattern/schema.mqh
+  --write-mql-header tools/candle_pattern_ml/tests/fixtures/schema_v3.mqh
 ```
 
 No new MQL5 test EAs, scripts, CI or external dependencies are required.

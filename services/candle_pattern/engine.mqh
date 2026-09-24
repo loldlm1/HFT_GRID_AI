@@ -1,53 +1,6 @@
 #ifndef CANDLE_ENGINE_MQH
 #define CANDLE_ENGINE_MQH
 
-void CandleAttemptSnapshot(const CandleAttempt &attempt, const MqlTick &tick,
-                           const double atr_current, const double atr_completed,
-                           const datetime atr_source)
-{
-  if(!g_candle_export_open || g_candle_export_failed) return;
-  string row = Signal_Feature_Run_Id;
-  CandleCell(row, attempt.id);
-  CandleCell(row, attempt.root_id);
-  CandleCell(row, CandleNullable(attempt.parent_id));
-  CandleCell(row, CandleInteger(attempt.sequence));
-  CandleCell(row, attempt.generation == 0 ? "ORIGINAL" : "REENTRY");
-  CandleCell(row, attempt.pattern);
-  CandleCell(row, CandleCategory(attempt.pattern_direction, attempt.direction));
-  CandleCell(row, CandleDirection(attempt.direction));
-  CandleCell(row, CandleInteger(tick.time_msc));
-  CandleCell(row, CandleNullable(g_candle_window_id));
-  CandleCell(row, g_candle_macro_open > 0 ? CandleInteger((long)g_candle_macro_open * 1000) : "\\N");
-  CandleCell(row, CandleInteger(g_macro_seconds));
-  CandleCell(row, CandleInteger(g_micro_seconds));
-  CandleCell(row, CandleNumber(tick.bid));
-  CandleCell(row, CandleNumber(tick.ask));
-  CandleCell(row, CandleNumber(_Point));
-  CandleCell(row, CandleNumber(SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_SIZE)));
-  CandleCell(row, CandleNumber(atr_current));
-  CandleCell(row, CandleNumber(atr_completed));
-  CandleCell(row, atr_source > 0 ? CandleInteger((long)atr_source * 1000) : "\\N");
-  CandleCell(row, "1");
-  CandleCell(row, "1");
-  double requested_volume = Lot_Type == EXECUTION_LOT_FIXED_SIZE ? Lot_Strategy_Size : EMPTY_VALUE;
-  if(Lot_Type == EXECUTION_LOT_REFERENCE_BALANCE_PERCENT)
-  {
-    double entry = EMPTY_VALUE, sl = EMPTY_VALUE, tp = EMPTY_VALUE;
-    if(CandleGeometry(tick, attempt.direction, atr_completed, entry, sl, tp))
-    {
-      double calculated = 0.0, volume = 0.0, stop_profit = EMPTY_VALUE;
-      string reason = "";
-      CandleVolume(attempt.direction, entry, sl, tp, calculated, volume, stop_profit, reason);
-      if(CandleNumberValid(calculated) && calculated > 0.0) requested_volume = calculated;
-    }
-  }
-  CandleCell(row, CandleNumber(requested_volume));
-  CandleContextCells(row, tick, attempt.direction);
-  CandleFeatureCells(row, 0, Macro_Timeframe, tick);
-  CandleFeatureCells(row, 1, Micro_Timeframe, tick);
-  CandleWrite(CANDLE_ATTEMPTS, row);
-}
-
 void CandleEnter(const string root_id, const string pattern, const int pattern_direction,
                   const int direction, const int generation, const string parent_id,
                   const MqlTick &tick)
@@ -61,12 +14,12 @@ void CandleEnter(const string root_id, const string pattern, const int pattern_d
   attempt.parent_id = parent_id;
   attempt.sequence = ++g_candle_sequence;
   attempt.decision_time = tick.time_msc;
-  attempt.id = root_id + ":" + CandleCategory(pattern_direction, direction) + ":" + CandleInteger(generation);
+  attempt.id = root_id + ":" + CandleCategory(pattern_direction, direction) + ":" + ModelInteger(generation);
   double atr_current = EMPTY_VALUE, atr_completed = EMPTY_VALUE;
   datetime atr_source = 0;
   bool atr_available = CandleAtr(atr_current, atr_completed, atr_source, tick.time);
   if(!atr_available) atr_completed = EMPTY_VALUE;
-  CandleAttemptSnapshot(attempt, tick, atr_current, atr_completed, atr_source);
+  CandleDatasetAttempt(attempt, tick, atr_current, atr_completed, atr_source);
   CandleSubmit(attempt, tick, atr_completed);
 }
 
@@ -86,7 +39,7 @@ void CandleReconcile(const MqlTick &tick, const bool allow_actions = true)
          MathAbs(PositionGetDouble(POSITION_TP) - g_candle_brokers[i].tp) > _Point * 0.1)
       {
         g_candle_broker_uncertain = true;
-        CandleExportFail("BROKER_PROTECTION_CHANGED");
+        ModelFail("BROKER_PROTECTION_CHANGED");
       }
       if(allow_actions) CandleRequestExpiry(g_candle_brokers[i], tick);
       continue;
@@ -102,7 +55,7 @@ void CandleReconcile(const MqlTick &tick, const bool allow_actions = true)
     else if(!allow_actions && !record.close_pending) status = "CENSORED_RUN_END";
     string reason_name = EnumToString((ENUM_DEAL_REASON)reason);
     bool censored = status == "CENSORED_RUN_END";
-    CandleOutcome(record.attempt.id, "BROKER", 1, record.attempt.direction, status, reason_name,
+    CandleDatasetOutcome(record.attempt.id, "BROKER", 1, record.attempt.direction, status, reason_name,
                   record.entry_time, record.deadline, censored ? 0 : close_time, tick.time_msc, record.entry,
                   censored ? EMPTY_VALUE : exit_price, record.sl, record.tp, record.volume,
                   censored ? EMPTY_VALUE : gross, censored ? EMPTY_VALUE : costs,
@@ -126,8 +79,8 @@ bool CandleDetect(const MqlRates &previous, const MqlRates &current,
 {
   pattern = "";
   direction = 0;
-  if(!CandleNumberValid(previous.open) || !CandleNumberValid(previous.close) ||
-     !CandleNumberValid(current.open) || !CandleNumberValid(current.close) ||
+  if(!ModelNumberValid(previous.open) || !ModelNumberValid(previous.close) ||
+     !ModelNumberValid(current.open) || !ModelNumberValid(current.close) ||
      previous.open <= 0.0 || previous.close <= 0.0 || current.open <= 0.0 || current.close <= 0.0 ||
      previous.open == previous.close || current.open == current.close) return false;
   bool bullish = current.close > current.open;
@@ -158,26 +111,10 @@ void CandleDiscover(const MqlTick &tick)
   string pattern;
   int direction;
   if(!CandleDetect(candles[0], candles[1], pattern, direction)) return;
-  string root_id = _Symbol + ":" + CandleInteger(g_micro_seconds) + ":" +
-                   CandleInteger(current_bar) + ":" + pattern;
-  string row = Signal_Feature_Run_Id;
-  CandleCell(row, root_id);
-  CandleCell(row, CandleInteger(++g_candle_sequence));
-  CandleCell(row, _Symbol);
-  CandleCell(row, pattern);
-  CandleCell(row, direction > 0 ? "BULLISH" : "BEARISH");
-  CandleCell(row, CandleInteger((long)candles[1].time * 1000));
-  CandleCell(row, CandleInteger(tick.time_msc));
-  CandleCell(row, CandleInteger(g_micro_seconds));
-  CandleCell(row, "DISCOVERED");
-  for(int i = 0; i < 2; i++)
-  {
-    CandleCell(row, CandleNumber(candles[i].open));
-    CandleCell(row, CandleNumber(candles[i].high));
-    CandleCell(row, CandleNumber(candles[i].low));
-    CandleCell(row, CandleNumber(candles[i].close));
-  }
-  CandleWrite(CANDLE_SIGNALS, row);
+  string root_id = _Symbol + ":" + ModelInteger(g_micro_seconds) + ":" +
+                   ModelInteger(current_bar) + ":" + pattern;
+  long signal_sequence = ++g_candle_sequence;
+  CandleDatasetSignal(root_id, pattern, direction, signal_sequence, candles[0], candles[1], tick);
   CandleEnter(root_id, pattern, direction, direction, 0, "", tick);
   CandleEnter(root_id, pattern, direction, -direction, 0, "", tick);
 }
@@ -199,12 +136,12 @@ void CandleFinish()
   {
     if(!g_candle_brokers[i].active) continue;
     CandleBrokerRecord record = g_candle_brokers[i];
-    CandleOutcome(record.attempt.id, "BROKER", 1, record.attempt.direction, "CENSORED_RUN_END", "",
+    CandleDatasetOutcome(record.attempt.id, "BROKER", 1, record.attempt.direction, "CENSORED_RUN_END", "",
                   record.entry_time, record.deadline, 0, tick.time_msc,
                   record.filled ? record.entry : EMPTY_VALUE, EMPTY_VALUE, record.sl, record.tp,
                   record.volume, EMPTY_VALUE, EMPTY_VALUE, record.position_id, record.reference_entry);
   }
-  CandleSealExport(g_candle_broker_peak, g_candle_virtual_peak);
+  ModelSeal(g_candle_broker_peak, g_candle_virtual_peak);
 }
 
 #endif
