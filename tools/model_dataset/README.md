@@ -10,6 +10,8 @@ The tool uses stdlib Decimal, SQLite and IANA zoneinfo. It installs no database
 service and has no Django dependency. A temporary disk index bounds Python
 memory while validating every row, clock, relationship, seal and source hash.
 The index is removed when the context closes; source exports are read-only.
+Temporary lookup indexes include outcomes by attempt, preventing Candle re-entry
+checks from rescanning all historical outcomes. Validation rules remain exact.
 
 ```bash
 .venv/bin/python -m tools.model_dataset.schema_contract --write-mql-header services/model_features/schema.mqh
@@ -44,6 +46,13 @@ becoming an accepted profile; an unregistered descriptor is rejected on intake.
 The third descriptor in tests is synthetic and is not a trading engine. Follow
 the [integration checklist](../../docs/research/model-feature-producer-handoff.md#adding-an-engine)
 and retain independent acceptance for each engine's broker behavior.
+
+Registration also declares per-callback work, resource caps, cleanup/retries and
+cache invalidation under the [runtime performance contract](../../docs/architecture/market-data-broker-executor.md#performance-contract).
+Reuse generated table-qualified field IDs and clock offsets; schema generation
+keeps indexed access checked. Validate exact ordered bytes and broker facts
+before accepting a measured speed change. Shared changes cover both engines,
+including export failure/seal behavior and growing-history resource evidence.
 
 The [producer handoff](../../docs/research/model-feature-producer-handoff.md) maps
 legacy fields and versions and locates accepted native receipts. Its ignored

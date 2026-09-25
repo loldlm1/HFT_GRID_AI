@@ -16,7 +16,7 @@ program or deployment was changed or certified by this refactor.
 | Pivot / outcome policy | `PIVOT_MACRO_V1` / `PIVOT_MACRO_OUTCOME_V1` |
 | Candle / outcome policy | `CANDLE_PATTERN_ATR_V2` / `CANDLE_ATR_OUTCOME_V1` |
 | EA property versions | Both `2.00` |
-| Accepted implementation commit | `c0a118903bc19845c4faeed0ae59ffb852652f70` |
+| Original framework implementation commit | `c0a118903bc19845c4faeed0ae59ffb852652f70` |
 | Native compiler | MetaEditor 6184, optimized AVX2, zero errors/warnings |
 | Default roles | Macro H1, Micro M3; fixed M1 structure source |
 | Producer root | `Common/Files/MQL5ModelDatasetV1/runs/<run_id>/` |
@@ -40,7 +40,122 @@ contains every source/include digest, binary size/mtime/hash and actual source
 commit. It covers 40 Pivot files and 17 Candle files. Historical matching binaries
 remain under `s1/`; previous accepted shared builds remain under `s3/` and `s4/`.
 Restore code and its matching binary together while the owned tester is idle.
-Preserve all old/new/failed datasets; rollback never rewrites a sealed run.
+Rollback never rewrites a sealed run. Preserve operator/recovered data and
+handoffs; D08 permits receipt-backed deletion of owned comparison/test exports.
+
+The runtime optimization retains these dataset/engine identities. Its S4
+source closure and release binaries are pinned in
+`.codex-artifacts/model-runtime-optimization/s4/build-final.json` at implementation
+commit `48f1f5f`. Candle includes the S3 indexed writer; Pivot also avoids repeated
+trial-state copies and non-touch outcome construction. The original B03 receipt
+above remains historical. The [current index](../README.md) records which
+focused and full-history gates have actually passed; later backend planning must
+use that status with the matching runtime receipts. The latest release adds the
+D11 shared readiness fix: request indicator data before checking calculated-bar
+readiness, so an initially unavailable Macro percent B can recover in nonvisual
+testing. Latest pins: runtime `s5/build-readiness.json` and
+`s5/readiness-compile.json`; the execution journal records the S5 commit.
+
+The user deferred full-history reruns/validation to manual follow-up (D10) and
+authorized the readiness repair using fast native tests (D11). The fresh full
+run IDs below identify the corrected release. A reserved ID is not an accepted
+dataset; earlier exports are never edited or backfilled.
+MT5's [No Delay mode](https://www.metatrader5.com/en/terminal/help/algotrading/testing)
+uses ideal execution at requested prices without requotes; historical spread
+still applies. This does not simulate realistic latency/liquidity slippage.
+No zero-versus-positive-delay comparison is required. A later Codex thread owns
+the backend upgrade; this work only supplies the MQL5 contract and datasets.
+Comparison/test exports may be removed after dependent checks under D08; retain
+their evidence receipts and preserve both selected datasets as they are produced.
+
+## Manual Full-History Handoff
+
+The runtime plan closes on short/medium and first-year optimization validation,
+plus 24 fast native cases/40 checks for the final readiness repair. Both latest
+EAs compile with zero errors/warnings; all 76 shared tests pass. Full-history
+acceptance is explicitly deferred. No Django code or training was performed.
+Ten additional exact raw-byte/prefix comparisons pass.
+
+| Engine | Selected full run ID | State when automation was handed over |
+| --- | --- | --- |
+| Candle | `RUNTIME_S5_CANDLE_READY_FULL_ZERO` | Configured, not started; generation and strict intake remain manual |
+| Pivot | `RUNTIME_S5_PIVOT_READY_FULL_ZERO` | Configured, not started; generation and strict intake remain manual |
+
+These are handoff-time states, not a live status API. The earlier Candle job
+`7689260149195731650` completed naturally before the readiness repair; preserve
+`RUNTIME_S5_CANDLE_FINAL_FULL_ZERO` as historical evidence, not a corrected
+training dataset. Its full strict intake was not run. No full job, automatic
+watcher, resource guard or queued launch remains active.
+
+Linux dataset root:
+`/home/admin/.wine/drive_c/users/admin/AppData/Roaming/MetaQuotes/Terminal/Common/Files/MQL5ModelDatasetV1/runs/`.
+The Windows equivalent is
+`C:\users\admin\AppData\Roaming\MetaQuotes\Terminal\Common\Files\MQL5ModelDatasetV1\runs\`.
+Both corrected, strictly accepted one-week datasets are available now:
+`RUNTIME_S5_CANDLE_READY_WARM_READY` and `RUNTIME_S5_PIVOT_READY_WARM_READY`
+(2015-08-17 to 2015-08-24 exclusive). Their per-file hashes/counts are in runtime
+`s5/candle-ready-warm-ready-validation.json` and
+`s5/pivot-ready-warm-ready-validation.json`. Retained first-year datasets remain
+valid evidence for the earlier optimization, with their pre-repair feature gaps.
+
+Full-run configurations and exact input files are
+`runtime-s5-candle-ready-full-zero.ini` / `.set` and
+`runtime-s5-pivot-ready-full-zero.ini` / `.set`, under the terminal's
+`MQL5/Profiles/Tester/` and copied into runtime `s5/`. Use
+`Candle_Pattern_Discovery.ex5` and `Pivot_Macro.ex5`, respectively. Settings:
+`XAUUSD_Exness_2015`, real ticks, H1/M3, Exness clock policy, zero execution delay,
+reference lot input `0.001`, simulated USD 10,000,000, leverage 500, export on,
+Visual/debug off. Requested interval: 2015-08-10 to 2026-09-08 exclusive.
+Prepared history ends 2026-09-07 23:59:58.893 UTC; the tester uses August 10 as
+startup history. This does not cover the operator's earlier September 23 end.
+Source gaps, settings hashes and binary pins are in `s5/feed-pin.json`,
+`s5/manual-full-cases.json` and `s5/build-readiness.json`.
+
+1. Verify the current binary/settings hashes and an idle owned tester, then run
+   Candle with its saved configuration/inputs. Save native JSON and XML/XLSX
+   reports before another run; a tool timeout does not stop native execution.
+   Do not restart an existing run ID. A stopped/failed candidate needs a fresh ID.
+2. With the owned tester idle, run Pivot using its saved configuration and inputs.
+   Follow the [resource guards](../environment/mt5-agentic-workflows.md#model-runtime-benchmarks).
+3. Require the complete ten/eleven-file set and an OK/NATURAL seal, then run strict
+   intake for each final directory. Store reports outside the source:
+
+```bash
+MODEL_DATASET_ROOT='/home/admin/.wine/drive_c/users/admin/AppData/Roaming/MetaQuotes/Terminal/Common/Files/MQL5ModelDatasetV1/runs'
+.venv/bin/python -m tools.model_dataset.reader "$MODEL_DATASET_ROOT/RUNTIME_S5_CANDLE_READY_FULL_ZERO" --report .codex-artifacts/model-runtime-optimization/s5/candle-ready-full-zero-validation.json
+.venv/bin/python -m tools.model_dataset.reader "$MODEL_DATASET_ROOT/RUNTIME_S5_PIVOT_READY_FULL_ZERO" --report .codex-artifacts/model-runtime-optimization/s5/pivot-ready-full-zero-validation.json
+```
+
+4. Reconcile actual coverage/ticks, inspect feature readiness and verify the
+   receipt hashes after copying. Update `s5/manual-handoff.json` and the current
+   index before describing either full dataset as accepted. Never backfill nulls
+   from future observations or mix the baseline and final runs.
+
+The repaired startup case recovers Macro percent B in 1,014/1,116 Candle and
+141/156 Pivot snapshots; earlier snapshots correctly remain unavailable until
+warmup completes. The corrected warm-start week has Macro percent B in all
+1,532 Candle and 248 Pivot snapshots. Other explicit gaps remain unchanged
+(94 and 20 snapshots); a strict PASS does not promise complete features everywhere.
+All broker orders/deals and realized results remain equal. In the partial Pivot
+case, 93 completed broker outcomes regain research eligibility under the existing
+policy once their entry snapshots are complete; their TP/SL results do not change.
+Evidence: `s5/readiness-validation.json` and `s5/readiness-feature-availability.json`.
+
+Old year/full datasets keep their original missing values. The diagnostic
+`s5/handoff-feature-readiness.json` records that pre-repair issue; it does not
+describe the corrected release. Do not mix old and corrected exports solely
+because both use schema 1: retain the source/binary pin and per-family readiness.
+
+D08 cleanup removes 138 identified S1-S4 comparison/test exports (2,358,030,442
+bytes), retaining their reports, settings, diagnostic evidence and file hashes.
+The exact paths and verified disposition are in `s5/dataset-cleanup-inventory.json`
+and `s5/dataset-cleanup-receipt.json`. S5 year/full references remain for manual
+follow-up; operator/recovered data, raw history and private handoff bundles stay
+untouched. One unclassified warmup folder is conservatively retained.
+After D11 validation, another 20 temporary exports (144,361,955 bytes) are removed
+with `s5/readiness-cleanup-{inventory,receipt}.json`; the two corrected one-week
+datasets retain their accepted hashes. All native reports/audits and binary
+backups remain available; temporary profile slots are restored.
 
 ## Intake And Grains
 
@@ -200,6 +315,13 @@ one-week prefixes, six file/header/seal faults and two refused reused identities
 The [validation runbook](../environment/mt5-agentic-workflows.md#shared-model-dataset-acceptance)
 defines reproducible commands, report handling and resource limitations.
 
+Availability note, 2026-09-25: the original B03 source folders were unavailable
+at runtime-sprint lookup, while their reports/settings remained. S3 recreated
+equivalent native baselines from the immutable current-schema binaries;
+`.codex-artifacts/model-runtime-optimization/s3/matrix-baseline-map.json`
+locates those fresh receipts. Verify actual source availability before intake;
+an archived run name alone does not establish that its files still exist.
+
 Sprint 6 verifies all 21 accepted run file sets and hashes, plus their settings
 and retained indicator/structure source audits. Its four representative exports
 pass a fresh strict-reader check. Other acceptance is reused only for unchanged
@@ -241,6 +363,13 @@ assumed from a producer-side validation pass.
 5. Compile the actual entrypoint, validate native exports against independent
    feature inputs, compare export-on/off broker behavior and exercise failure
    isolation. Pin source/binary/data/settings and document engine-specific targets.
+6. Declare callback/bar/capture work, handle/state/buffer caps, cleanup, retries
+   and cache invalidation under the [performance contract](../architecture/market-data-broker-executor.md#performance-contract).
+   Reuse generated field IDs and shared providers; retain execution ownership.
+   Prove exact row/clock/outcome ordering, then measure repeated release builds,
+   early/late occupancy and day/week/month/long-history growth. Shared changes
+   require both existing engines' regression checks. Keep native history memory
+   separate from bounded application state and retain stopped/failed evidence.
 
 No runtime ML policy or broker decision is implied by adding a feature. Human
 chart review, full-history scale, recovered-run semantic acceptance and formal

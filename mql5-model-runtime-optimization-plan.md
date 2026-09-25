@@ -1,12 +1,13 @@
 # Plan: MQL5 Model Runtime Optimization
 
 - **Generated:** 2026-09-24
-- **Status:** In progress - Sprint 4 validated; commit gate pending.
+- **Status:** Completed - five sprints, including the D11 readiness fix.
+  Corrected full-history generation/acceptance remains manual under D10.
 - **Execution authorization:** The user requested execution of all five sprints,
   including the planned validation and commit gates, on 2026-09-24. Earlier
   authorization to stop the current Candle tester if needed remains applicable.
 - **Proposal:** Not requested; this is the follow-up to the completed
-  [feature framework plan](mql5-model-feature-framework-plan.md).
+  [feature framework plan](docs/plans/archive/mql5-model-feature-framework-plan.md).
 - **Complexity:** High
 - **Planning baseline:** `2292be7517201a41b8dde8b78e503f413c15eb31`, branch
   `bot/pivot_points_fractal`; clean tracked worktree at discovery.
@@ -50,6 +51,10 @@ not a measured comparable baseline or an unconditional delivery promise.
 | D05 | Earlier explicit scope is MQL5 only; Django follows later. | Update the producer handoff for later consumers without opening or changing that repository. |
 | D06 | Existing validation rules require matched settings, alternating repeats and gains above measurement noise. | Establish repeatable performance gates before promoting an optimization. |
 | D07 | User selected Q01 option B, then clarified on 2026-09-25 that positive execution delay is an intentional market-simulation setting, not a blocker. | Keep this plan performance-only. Use zero-delay runs for strict dataset acceptance; retain delayed runs for matched performance and broker comparisons. The existing Candle close-observation export inconsistency is a documented limitation outside this plan, not a prohibition on positive delay or a sprint blocker. Preserve timestamps and the strict reader. |
+| D08 | During full-history execution, the user requested preserving both model datasets for the later backend upgrade and authorized removing comparison/test datasets. | Preserve both optimized full-source runs with strict validation, file hashes and consumer receipts. After all dependent checks, remove only positively identified generated comparison/test datasets. Retain native reports/settings/source pins, handoffs, operator/recovered data and raw Exness history. Record the exact cleanup inventory and retained run IDs. |
+| D09 | On 2026-09-25 the user clarified that zero-versus-positive-delay comparisons are unnecessary, then explicitly requested only the handoff with both new full datasets; a later thread owns backend work. | Do not add latency comparisons or open the Django repository. Finish and validate both optimized full-source datasets at fixed zero delay, update the handoff and apply D08. Retain completed comparison evidence; defer the unstarted full Pivot baseline and report its full-history speedup as unmeasured. Backend implementation belongs to the later thread. |
+| D10 | The user then explicitly requested finishing this plan without waiting for full-history runs, which they will continue manually. | Close S5 using completed short/medium/first-year validation and final documentation/source checks. Leave the current native run running, disable the automatic queue, preserve available datasets and provide both final full-run configurations plus manual strict-intake commands. Full-history generation/validation remains an operator follow-up, not a passed gate. No further native run is launched. |
+| D11 | After the missing Macro percent-B readiness issue was reported, the user authorized fixing remaining issues with fast Strategy Tester runs. | Repair shared indicator readiness within S5, compile both engines and use short partial/warm-start runs to prove recovery, independent feature values, unchanged broker behavior and unaffected fields. This is an explicit exception to exact feature equivalence for formerly unavailable measurements, not permission to backfill old exports. Stop the owned obsolete full run if needed; retain its disposition. Publish new source/binary pins and fresh manual full-run IDs. D10 still defers full-history reruns; D07 chronology and Django boundaries remain unchanged. |
 
 ## 2. Findings And Evidence
 
@@ -319,6 +324,14 @@ exists; label that limitation. Never corrupt the operator's growing dataset.
    as unmeasured rather than extrapolated. Do not repeat every full-history run
    after each small change.
 
+D09 narrows the remaining work to the two validated final datasets and their
+handoff. Reuse the completed full Candle and first-year Pivot references; the
+unstarted full Pivot reference is deferred. This does not waive strict full-run
+intake for either selected dataset or permit extrapolated full Pivot speedups.
+D10 subsequently moves full-run completion and intake to manual follow-up;
+the plan closes on the validated optimization and documented handoff. A future
+consumer must still validate a naturally sealed full dataset before intake.
+
 No blanket Timer removal/coarsening is allowed: it services broker lifecycle
 and expiry. Use native history profiling first. If attribution remains missing,
 permit narrowly scoped compile-time counters in the real EA code, with bounded
@@ -476,7 +489,15 @@ record it explicitly instead of changing a working path for appearances.
 - **Tracked scope:** `docs/README.md`, `docs/environment/mt5-agentic-workflows.md`,
   `docs/architecture/market-data-broker-executor.md`,
   `docs/research/model-feature-producer-handoff.md`, `tools/model_dataset/README.md`,
-  concise `AGENTS.md`, this plan and completed-plan archival/navigation.
+  concise `AGENTS.md`, this plan and completed-plan archival/navigation. A measured
+  validation follow-up also adds one temporary SQLite lookup index in
+  `tools/model_dataset/reader.py`; it changes no semantic checks or source data.
+  D11 additionally authorizes `services/model_features/indicators.mqh` to repair
+  the nonvisual startup readiness latch, with both release builds and short
+  native regressions. Schema, price formulas and broker behavior stay unchanged.
+  Newly complete Pivot snapshots can restore existing broker research eligibility
+  from FEATURE_INCOMPLETE to the unchanged TP/SL label. Validate that derived
+  transition against the associated snapshot; actual trades/outcomes never change.
 - **Tasks:**
   1. Apply V5 to final release binaries and pinned unoptimized current baselines.
      Complete both full-history Exness exports and strict V3 intake, including
@@ -497,11 +518,17 @@ record it explicitly instead of changing a working path for appearances.
      relative links and Git recovery reference. Keep this as the single latest
      plan, preserve old facts/commit pins, and update navigation. Keep AGENTS
      <=160 lines / 8 KiB and changing project status in `docs/README.md`.
+  5. Apply D08 after validation: preserve the two optimized full-source datasets
+     for the backend handoff, then delete only the inventoried comparison/test
+     exports whose checks are complete. Record ownership, paths, bytes and retained
+     hashes before cleanup; exclude operator/recovered sources, raw tick history,
+     tracked fixtures and handoff bundles. Verify both retained datasets afterward.
 - **Acceptance/validation:** V1 links/source pins; V2 only if sources changed;
-  final V3/V5 for both models. Existing consumer handoff remains usable with no
+  completed short/medium/year V3/V5 for both models, with full-history V3/V5
+  explicitly deferred to manual follow-up by D10. Existing consumer handoff remains usable with no
   schema/feature/engine identity changes. An unresolved performance or native
   gate is reported as open, not completed by documentation alone.
-- **Commit:** `docs(perf): publish model benchmarks and engine performance rules`.
+- **Commit:** `perf(models): finalize runtime gains and repair indicator readiness`.
 - **Rollback:** Record S5 parent (S4 commit); revert S5 documentation/navigation
   as one commit if needed, without deleting private runs or acceptance evidence.
 - **Gate:** Final outcomes, tests, residual limits, one commit and rollback pin
@@ -552,8 +579,10 @@ For each sprint, record its parent and resulting commit plus exact source and
 binary receipts. Roll back with a new reviewed revert commit, never reset/amend
 history; unwind dependent sprints in reverse order and restore matching binaries
 or recompile. A revert is not permission to deploy or alter open live positions.
-No dataset migration is required: schema 1 remains exact, old and failed datasets
-stay untouched, and every corrected run gets a new ID. Do not clear shared MT5
+No dataset migration is required: schema 1 remains exact, operator/recovered
+datasets stay untouched, and every corrected run gets a new ID. D08 permits
+receipt-backed cleanup of owned comparison/test exports after their checks.
+Do not clear shared MT5
 history/cache or change global settings to manufacture benchmark gains.
 
 Execution starts only after its authorization is present. At that handoff, read
@@ -566,7 +595,7 @@ continue only independent authorized work while it is unanswered.
 - [x] Execute S1, validate, create exactly one commit and record its parent.
 - [x] Execute S2 only after S1, with the same validation/commit/rollback gate.
 - [x] Execute S3 only after S2, with the same gate.
-- [ ] Execute S4 only after S3, with the same gate.
+- [x] Execute S4 only after S3, with the same gate.
 - [ ] Execute S5 only after S4 and record full-history outcomes for both engines.
 - [ ] Retain human chart, broker-feed and recovered-run gates in the index;
   automated performance acceptance grants no live rollout authority.
@@ -683,7 +712,7 @@ continue only independent authorized work while it is unanswered.
 ### Sprint 4
 
 - Implementation and automated validation passed; rollback parent: `3b2ba9b`.
-  Record the resulting sprint commit in the execution journal before S5.
+  Committed as `48f1f5f`; the execution journal retains its full SHA and parent.
 - The profile implicates `pivot_trial_matrix_lifecycle.mqh`, a directly reached
   Pivot state helper within S4 scope. Copy-B01 reads active/pending fields before
   copying and passes trials by const reference in the hot resolver. Its isolated
@@ -717,3 +746,96 @@ continue only independent authorized work while it is unanswered.
   compiles on MetaEditor 6184 AVX2 with zero errors/warnings; pins are in
   `s4/build-final.json`. Resource snapshots retain process-lifetime HWM limits;
   they do not prove leak freedom. No new dependency, harness or live rollout.
+
+### Sprint 5
+
+- Completed; rollback parent: `48f1f5f`. The final commit is recorded in the
+  execution journal after its creation. Both native year gates pass on the
+  optimized pre-readiness builds; D11 adds final short native regressions.
+  Corrected full-history completion/acceptance is explicitly deferred by D10.
+- Long-run settings and guards are pinned in `s5/long-cases.json` and
+  `s5/long-preflight.json`. The prepared gold source has 333,083,223 rows,
+  begins 2015-08-10 and ends 2026-09-07 23:59:58.893 UTC. `s5/feed-pin.json`
+  retains source coverage/gaps, hashes and import metadata. Both long prefixes
+  start 2015-08-10; the full interval ends 2026-09-08 exclusive. The original
+  operator requested through 2026-09-23, beyond this prepared source's end.
+  Earlier day/week/month prefixes retain their matched 2015-08-17 start.
+- Current/final release runs use real ticks, H1/M3, zero delay, reference risk
+  0.001, simulated USD 10,000,000 / leverage 500, export on and Visual/debug off.
+  Initial native warmup may advance the effective start; reconcile the journal
+  and generated ticks with coverage before claiming full-source acceptance.
+- The completed framework plan is archived with repaired links and original
+  `48f1f5f:mql5-model-feature-framework-plan.md` recovery. Onboarding/runtime/
+  validation owners declare bounded work/state, cache invalidation, retry and
+  exact-behavior/performance gates. Current shared-schema procedures distinguish
+  ten/eleven files and Macro/Micro from retained historical V14/Deep procedures.
+  D11 later adds the shared readiness repair below; schema/backend stay unchanged.
+- The first-year Candle reader exposes a separate validation cost: re-entry
+  checks repeatedly scan `outcomes` by `attempt_id`. The interrupted owned
+  validation traceback identifies that exact query; the existing fixture's
+  SQLite plan changes from SCAN to indexed SEARCH with one temporary index.
+  Add `outcomes_attempt_lookup` to the disposable reader database so full-source
+  acceptance is practical. No query, strict rule, exported field or clock changes.
+  Evidence: `s5/reader-index-query-plan.json` and the retained interruption log.
+  All 76 shared tests and both indexed-reader year validations pass before
+  extending to full history. This is a local performance fix within the MQL5
+  project's acceptance tooling, with no Django or producer behavior change.
+- The matched first-year pairs each generate 31,438,575 ticks and pass exact
+  ordered bytes, broker cells/statistics and strict intake. Single-pair release
+  times: Candle `61.383 -> 51.547 s` (16.0% lower), Pivot `849.944 -> 73.944 s`
+  (91.3% lower). Receipts: `s5/year-*-validation.json`, `s5/year-performance.json`.
+  `s5/year-source-coverage.json` reconciles the first-day history and one remaining
+  startup quote difference; the terminal's internal first-tick disposition is
+  not exposed. `s5/report-stream-validation.json` proves the bounded XML decoder
+  retains the existing helper's ordered broker cells and canonical digest.
+- Before full runs, release only the confirmed idle original operator tester,
+  identified by the retained sampler, executable mapping, low CPU and no open
+  dataset files. Its roughly 8 GiB retained memory is freed. The receipt
+  `s5/idle-operator-worker-release.json` confirms exit and unchanged original
+  dataset sizes/mtimes; no terminal, disk cache or operator data was removed.
+- D10 explicitly closes this plan without waiting for full-source acceptance.
+  The earlier Candle baseline and optimized run completed naturally in
+  `787.053 / 669.674 s`, each with 332,994,255 ticks. The native full count is
+  source rows minus 88,968 startup-day rows; the year-derived one-tick forecast
+  was not exact and is corrected in `s5/full-source-coverage.json`. Full strict
+  intake/comparison remains unrun; these times do not certify the latest repair.
+  The queued full Pivot run never started, and the automatic queue is disabled.
+- Handoff inspection found Macro percent B unavailable throughout the old
+  year summaries and first/last full samples. D11 authorizes repairing this
+  pre-existing readiness latch with fast native checks. `ModelCopyBuffer` now
+  calls bounded `CopyBuffer` before the same `BarsCalculated` threshold, allowing
+  demand-driven calculation. No formula, timeframe, schema or broker source changes.
+  Readiness-null snapshots already written to disk remain immutable.
+- Both EAs compile on MetaEditor 6184 AVX2 with zero errors/warnings. All 76 shared
+  tests pass in 10.989 seconds. Twenty-four short native runs produce 40 passing
+  strict, source-value, broker/statistic, unaffected-field, prefix and export-off
+  checks. Partial cases recover 1,014/1,116 Candle and 141/156 Pivot Macro-percent-B
+  snapshots; warm-week outputs remain exactly equivalent. Ninety-three Pivot
+  broker research labels recover from FEATURE_INCOMPLETE under the existing
+  policy, with unchanged entry/exit, TP/SL and orders. The validator binds every
+  such transition to its newly complete entry snapshot. Preserve its initial
+  eligibility-discovery assertion as diagnosis, not an unresolved failure.
+- Three alternating warm-week medians after warmup: Candle `0.867 -> 0.848 s`,
+  Pivot `1.321 -> 1.295 s`; no material regression or additional speed claim.
+  Evidence: `s5/readiness-validation.json`, `readiness-compile.json`,
+  `build-readiness.json` and `readiness-feature-availability.json`. Retain the
+  original source/binary pins for year/full evidence; current release pins differ.
+- The manual handoff reserves fresh `RUNTIME_S5_CANDLE_READY_FULL_ZERO` and
+  `RUNTIME_S5_PIVOT_READY_FULL_ZERO` IDs, both unstarted, with exact settings,
+  current binary hashes and strict-intake instructions. Corrected one-week
+  datasets are retained for both engines. No Django changes or latency comparisons
+  were added. Genuine startup/other feature gaps remain explicit.
+- D08 cleanup removes 138 owned S1-S4 comparison/test exports totaling
+  2,358,030,442 bytes, after recording paths and hashes. Operator files retain
+  sizes/mtimes; accepted year hashes still match. S5 manual-follow-up references,
+  current model examples, raw history and private handoff/evidence remain.
+  Exact inventory/disposition: `s5/dataset-cleanup-{inventory,receipt}.json`.
+- Ten additional exact raw-byte/prefix comparisons pass. Final source/EX5,
+  generated schema, manual full settings, ignores, whitespace and 82 local
+  links/anchors pass; AGENTS remains 133 lines / 8,189 bytes. A further 20
+  temporary D11 datasets totaling 144,361,955 bytes are removed after their
+  dependent checks. The two corrected one-week examples retain every accepted
+  file hash. Receipts: `s5/final-validation.json` and
+  `s5/readiness-cleanup-{inventory,receipt}.json`. All automatic queues are empty.
+  D11 reuses the pinned profiling/testing guidance and scoped graph: only an
+  existing helper body changes, with the include/call topology confirmed unchanged.

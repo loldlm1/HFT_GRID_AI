@@ -15,7 +15,8 @@ along with the source/binary mapping and validation receipts. Candle is unchange
 The framework acceptance below retains its original pre-rename source/binary pins.
 
 The current [runtime optimization plan](../mql5-model-runtime-optimization-plan.md)
-is executing five ordered sprints. Sprint 1 retains immutable old/current builds,
+is complete across five ordered sprints, with full-history completion/acceptance explicitly
+handed to the operator by D10. Sprint 1 retains immutable old/current builds,
 native reports and isolated timing profiles in
 `.codex-artifacts/model-runtime-optimization/s1/`. Three alternating measured
 week pairs after warmup use real ticks, gold, H1/M3 and 100 ms delay. Export-on
@@ -74,8 +75,50 @@ S4 receipts: `.codex-artifacts/model-runtime-optimization/s4/`, including
 `lifecycle-assessment.json`. Pivot compiles with zero errors/warnings on
 MetaEditor 6184 AVX2. Full-history acceptance remains the S5 gate; focused
 timings and sampled process memory do not establish full-history performance.
+S4 is committed as `48f1f5f`. S5 completes the first-year comparisons and publishes
+the future-engine performance contract, manual full-run handoff and retention
+receipts. The user requested plan closure without waiting for full-history runs.
 
-The completed [MQL5 feature framework plan](../mql5-model-feature-framework-plan.md)
+S5 first-year comparisons now pass exact bytes, ordered broker/statistics and
+strict validation for both engines over 31,438,575 generated ticks. Single-pair
+times are Candle `61.383 -> 51.547 s` and Pivot `849.944 -> 73.944 s` (16.0% and
+91.3% lower). The local strict reader now indexes outcomes by attempt in its
+temporary SQLite database: the prior Candle re-entry query scanned the whole
+table for each parent. All 76 shared tests pass; validation rules, data and
+producer binaries are unchanged. Year evidence is under runtime `s5/`.
+Full-source acceptance remains a manual follow-up. The pre-readiness optimized
+Candle job `7689260149195731650` completed naturally in 669.674 seconds over
+332,994,255 ticks; its strict full intake was deferred. It does not certify the
+latest readiness repair. No full job or automatic queue remains active. See the
+[manual handoff](research/model-feature-producer-handoff.md#manual-full-history-handoff)
+for fresh corrected full-run IDs, accepted short datasets, settings and strict
+intake commands. The prepared source spans 2015-08-10
+through 2026-09-07; MT5 uses the first day as startup history. The original
+stopped operator's idle tester process was released before full runs, retaining
+all operator file sizes/mtimes and leaving disk caches untouched.
+
+Under D11, S5 also repairs inherited indicator startup readiness: `CopyBuffer`
+now requests demand-driven calculation before the existing calculated-bar guard.
+Macro percent B recovers in both partial-start tests; it is available in every
+warm-start snapshot (1,532 Candle / 248 Pivot). Existing explicit gaps in other
+features remain unchanged. All 40 native checks over 24 short runs pass: strict
+intake, independent feature values, prefixes, export-on/off, broker results and
+unaffected fields, plus ten exact raw-byte/prefix comparisons. Recovery also
+restores 93 Pivot broker research labels under
+the existing completeness policy; realized TP/SL facts and orders stay equal.
+Three alternating warm-week medians remain within noise (`0.867 -> 0.848 s`
+Candle, `1.321 -> 1.295 s` Pivot), with no material regression. Both latest EAs
+compile with zero errors/warnings; all 76 shared tests pass. Latest pins/checks:
+runtime `s5/build-readiness.json`, `readiness-compile.json` and
+`readiness-validation.json`. Old year/full exports remain pre-repair evidence;
+corrected full-history generation and strict intake are manual under D10.
+D08 cleanup removes 158 identified completed S1-S5 comparison/test exports;
+reports/settings/hashes, S5 follow-up references, selected model datasets,
+operator/recovered data and raw history remain preserved. The handoff contains
+the inventory and manual continuation instructions. No further latency
+comparison or backend change belongs to this completed optimization plan.
+
+The completed [MQL5 feature framework plan](plans/archive/mql5-model-feature-framework-plan.md)
 covers all six earlier sprints. The [producer handoff](research/model-feature-producer-handoff.md)
 defines intake, legacy mapping, accepted source/binary pins and the private
 consumer evidence bundle for later backend planning. Sprint 1 froze the

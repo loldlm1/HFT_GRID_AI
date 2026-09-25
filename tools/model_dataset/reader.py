@@ -258,6 +258,8 @@ class ModelRun(AbstractContextManager):
         for source, key, target, target_key in links:
             self.db.execute(f'CREATE INDEX IF NOT EXISTS "{source}_{key}_link" ON "{source}" ("{key}")')
             self.none(f'SELECT 1 FROM "{source}" s LEFT JOIN "{target}" t ON s."{key}"=t."{target_key}" WHERE s."{key}" IS NOT NULL AND t."{target_key}" IS NULL LIMIT 1', "Orphan reference: " + source)
+        # Candle re-entry checks find the parent's broker outcome by attempt.
+        self.db.execute("CREATE INDEX IF NOT EXISTS outcomes_attempt_lookup ON outcomes(attempt_id)")
         self.none("SELECT 1 FROM trials t LEFT JOIN outcomes o USING(trial_id) WHERE o.trial_id IS NULL LIMIT 1", "Trial lacks sealed outcome")
         self.none("SELECT 1 FROM outcomes o JOIN trials t USING(trial_id) WHERE o.attempt_id<>t.attempt_id OR o.role<>t.role OR o.rr<>t.rr LIMIT 1", "Outcome changes trial identity")
         self.none("SELECT 1 FROM entry_attempts a JOIN feature_snapshots f USING(snapshot_id) WHERE a.signal_id<>f.signal_id LIMIT 1", "Attempt changes snapshot signal")

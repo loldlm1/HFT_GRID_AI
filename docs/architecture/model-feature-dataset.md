@@ -1,7 +1,7 @@
 # Shared Model Feature Dataset
 
 This is the versioned producer contract for the
-[implementation plan](../../mql5-model-feature-framework-plan.md).
+[implementation plan](../plans/archive/mql5-model-feature-framework-plan.md).
 The [project index](../README.md) owns implementation and acceptance status.
 The [producer handoff](../research/model-feature-producer-handoff.md) locates
 release pins, examples and the later backend planning boundary.

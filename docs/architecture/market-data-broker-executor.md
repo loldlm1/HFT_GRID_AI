@@ -152,6 +152,9 @@ Research owns six Macro/Micro handles plus M1 Stochastic; Micro M1 reuses its
 Stochastic handle. Candle's execution ATR remains independently owned. Export
 off creates no research handles or active research states. Partial availability
 is explicit per family; no per-tick handle creation or chart work occurs.
+Request the bounded indicator buffer before checking calculated-bar readiness:
+nonvisual testing computes on demand, so a readiness-only early return can latch
+startup unavailability. Keep warmup/count/value checks and never backfill snapshots.
 
 Pivot emits ten TSVs, Candle eleven, in
 `Common/Files/MQL5ModelDatasetV1/runs/<run_id>/`. Common facts separate signal,
@@ -172,6 +175,38 @@ Only the new strict [reader](../../tools/model_dataset/README.md) accepts this
 family. Historical [V14 tooling](../../tools/deterministic_signal_ml/README.md)
 and [Candle tooling](../../tools/candle_pattern_ml/README.md) retain their own
 headers, fixtures and datasets; there is no conversion or dual writer.
+
+## Performance Contract
+
+Every engine or feature declares the callbacks that advance closed state,
+project live state, capture features and write rows. Record the work bound per
+callback/bar/snapshot, readiness retries and ownership of execution resources.
+Timers retain broker reconciliation and expiry responsibilities.
+
+Retained application state depends on active lifecycles and fixed windows.
+Declare handle, active-record, cache and pending-work caps; reuse inactive slots
+and release completed state. Current bounds are seven shared handles, a separate
+Candle execution ATR, 4096/256 structure bars, 2048 Pivot trial states, and
+Candle's 2048 broker / 6144 virtual states with 64 deals per selected position.
+Writer limits remain 256 rows / 1 MiB per table; completed rows stay on disk.
+
+Reuse generated field IDs, clock offsets and shared providers. Avoid per-tick
+handle creation, full-history containers, field-name searches and large state
+copies on callbacks without a transition. Retain transactional copies where
+mutation or failure recovery requires them. Cache only proven immutable facts;
+declare invalidation for symbol, role, parameters, source readiness/history,
+bar/quote identity and failures. A timestamp alone is not a snapshot cache key.
+
+Optimization preserves callback/row order, exact prices/clocks, shift-0 values,
+labels, explicit gaps/censors and broker decisions. Require matched export-on/off
+broker results, exact dataset/feature comparisons and failure/seal checks.
+Measure release builds after warmup with at least three alternating short/medium
+pairs, early/late workloads and growing history. Normalize work by ticks,
+captures, active occupancy, selected deals and bytes. Report native retained
+history separately from application state; neither stable RSS nor elapsed days
+alone proves bounded cost. Shared changes validate both existing engines.
+The [runbook](../environment/mt5-agentic-workflows.md#model-runtime-benchmarks)
+owns resource guards, measurement details and promotion criteria.
 
 ## Failure And Include Boundaries
 

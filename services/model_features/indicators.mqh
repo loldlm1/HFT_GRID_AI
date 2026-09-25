@@ -79,9 +79,11 @@ void ModelCloseIndicators()
 bool ModelCopyBuffer(const int handle, const int buffer, const int warmup, double &values[])
 {
   ArrayInitialize(values, EMPTY_VALUE);
-  if(handle == INVALID_HANDLE || BarsCalculated(handle) < warmup + 10) return false;
+  if(handle == INVALID_HANDLE) return false;
   double copied[10];
+  // Nonvisual testing calculates on demand; request data before checking readiness.
   if(CopyBuffer(handle, buffer, 0, 10, copied) != 10) return false;
+  if(BarsCalculated(handle) < warmup + 10) return false;
   for(int i = 0; i < 10; i++)
   {
     if(!ModelNumberValid(copied[i])) return false;

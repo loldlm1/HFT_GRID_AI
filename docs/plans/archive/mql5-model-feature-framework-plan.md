@@ -1,5 +1,10 @@
 # Plan: MQL5 Engine Feature Framework
 
+Archived 2026-09-25 after completed framework execution. Original tracked path:
+`48f1f5f:mql5-model-feature-framework-plan.md`. This record retains its dated
+results; the [runtime plan](../../../mql5-model-runtime-optimization-plan.md)
+owns the follow-up optimization.
+
 - **Generated:** 2026-09-24
 - **Status:** Completed - six sprints; operational gates remain open in the project index.
 - **Execution authorization:** User requested execution of all six sprints on 2026-09-24, including the planned validation and commit gates.
@@ -11,11 +16,11 @@
 Post-completion naming update, 2026-09-24: the Pivot entrypoint is now
 `Pivot_Macro.mq5` / `Pivot_Macro.ex5`. The completed execution record below retains
 its original filenames and build pins. Use the current
-[environment runbook](docs/environment/mt5-agentic-workflows.md) for new builds;
+[environment runbook](../../environment/mt5-agentic-workflows.md) for new builds;
 the engine ID and dataset contract remain unchanged.
 
 Post-completion planning follow-up, 2026-09-24: the
-[model runtime optimization plan](mql5-model-runtime-optimization-plan.md)
+[model runtime optimization plan](../../../mql5-model-runtime-optimization-plan.md)
 investigates the reported long-history slowdown in both engines. It is a new
 planning scope; this framework execution remains complete and is not restarted.
 
@@ -1118,6 +1123,6 @@ sprint's validation and rollback parent. Commits S1-S5 are `8a6381a`, `4bbfafe`,
 `f5920fb`, `5394705` and `c0a1189`; S6 is this documentation-completion commit,
 whose exact SHA is recorded in the journal after commit. The accepted runtime
 source remains S5, with matching B03 binaries; S6 changes documentation only.
-The [project index](docs/README.md) owns current acceptance and remaining gates;
-the [producer handoff](docs/research/model-feature-producer-handoff.md) locates
+The [project index](../../README.md) owns current acceptance and remaining gates;
+the [producer handoff](../../research/model-feature-producer-handoff.md) locates
 the final contract, examples and exact source/binary/native-run receipts.

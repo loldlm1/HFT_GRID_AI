@@ -154,7 +154,8 @@ Record parsed compiler status and `.ex5` metadata, not the full log.
 
 Both current EAs use the [common schema and reader](../../tools/model_dataset/README.md).
 Compile both whenever shared includes change; retain source-closure and EX5 pins.
-Run the [current plan's native matrix](../../mql5-model-feature-framework-plan.md#11-sprint-5-cross-engine-native-acceptance)
+Retain the [framework native matrix](../plans/archive/mql5-model-feature-framework-plan.md#11-sprint-5-cross-engine-native-acceptance)
+and apply the [runtime plan's exact/performance gates](../../mql5-model-runtime-optimization-plan.md#5-measurement-and-validation-gates)
 with fresh IDs under `Common/Files/MQL5ModelDatasetV1/runs/`. Save each job's
 JSON and XML/XLSX report before starting another job; historical reports may no
 longer be retrievable. Reused-ID initialization refusal has no tester report:
@@ -284,21 +285,21 @@ matching binary or recompile if source is reverted.
 
 Use the current index to select accepted prior evidence and the remaining human
 visual gate. A new full runtime acceptance uses **Every tick based on real ticks**,
-matched export-disabled/enabled intervals and file logs off. Check H1 midpoint
-touch/no-touch and all ratios, paired Macro/Deep and Deep/Micro capture, both
-parent relationships, parent-specific censoring,
-R5 continuation without a special controller, structural 1R broker ownership,
-export-off parity and DST. Validate/build/audit the strict V14 output, preserving
-the configured support floor even when the run has insufficient support.
+matched export-disabled/enabled intervals and file logs off. Current producers
+capture Macro/Micro features and fixed M1 confirmed/forming structure. Check
+Pivot midpoint touch/no-touch, all eight lanes, survival across rollover,
+structural 1R broker ownership and parity; check Candle both directions,
+confirmed-SL re-entry and expiry. Include partial readiness and Exness DST.
+Strictly validate the common-schema output with the shared reader.
 
-Record elapsed time, peak state/capacity, twelve-file row counts, folder growth,
+Record elapsed time, peak state/capacity, ten-Pivot/eleven-Candle file row counts, folder growth,
 source/binary hashes, tester settings and meaningful diagnostics. Human inspection
 checks owned lines/labels, cleanup and the 16-position rendering bound. Fixtures
 and compilation cannot replace that visual check. It is required before a
 deployment-oriented claim and does not block separately authorized offline
 contract preparation.
 
-For behavior-preserving optimization, compare all twelve files in original row
+For behavior-preserving optimization, compare every engine file in original row
 order with exact values, normalizing only verified run IDs (including the manifest
 run-ID value). Keep feature, timestamp, price, outcome and membership facts exact.
 Pair this with ordered broker messages and non-job report fields, strict validation,
@@ -308,13 +309,19 @@ and treat gains below 5% as inconclusive for performance promotion. A bounded pr
 sample cannot establish absence of leaks over every multi-year run. Reuse valid
 same-binary gates and never replace an active operator's EX5 for benchmarking.
 
-For a fatal research failure, retain the first `PIVOT_V14_EXPORT_FAILED` journal
-entry, its external `PivotFractalV14/diagnostics/<run_id>.failure.txt` sidecar when
-available, tester job ID, settings and source/binary pin. The EA stops only the
-tester at an event boundary; a `FAILED` / `CENSORED` or unsealed export is invalid.
+For a fatal research failure, retain the first dataset diagnostic, its external
+sidecar when available, tester job ID, settings and source/binary pin. Preserve
+the invalidating failure marker even if an earlier summary was flushed. The EA
+stops only the tester; a failed or unsealed export is invalid.
 Use fresh run IDs after correction. Fault checks may invalidate a header or
 remove an export file only in a new disposable run, with the original file
 retained outside its strict directory.
+
+Historical V14 acceptance still uses twelve files, Macro/Deep and Deep/Micro
+capture, parent/link censors and the V14 reader/build/audit with its support
+floor. Retain `PIVOT_V14_EXPORT_FAILED` and the original
+`PivotFractalV14/diagnostics/<run_id>.failure.txt` evidence for those old runs;
+these contracts do not apply to current shared-family exports.
 
 Native tester tool timeouts limit waiting, not execution. Retain each returned
 job ID, use waits no longer than 60 seconds, and stop only that matching active
@@ -329,6 +336,39 @@ timings, warmup exclusion and resource guards; `s1/profile-summary.json` separat
 bounded instrumented timings from release results. Never infer generated ticks
 from Tick/Timer/transaction callback counts. Compare all non-job native report
 statistics and ordered orders/deals, alongside exact common-schema TSVs.
+
+Pin compiler/source/EX5, symbol specifications and prepared/imported feed,
+requested/effective dates, real-tick mode, periods, lots, deposit/leverage,
+execution delay, export/debug/Visual settings and cache preparation. Use one
+tester workload at a time and fresh IDs; save native JSON and XLSX reports before
+starting another job. Separate startup, steady work and final seal, and exclude
+instrumented builds from release speed claims. Retain warmup plus three
+alternating measured pairs for short/medium cases; report medians and ranges.
+A change below 5% or within variation is inconclusive; an unexplained regression
+over 5% in either engine prevents promotion.
+
+Use day/week/month/year prefixes, independent early/late windows and final
+full-source runs after focused gates. A history gap or zero-tick case is not a
+fast result. Record actual ticks, captures/rows/bytes, active/handle/buffer peaks,
+CPU, sampled RSS, process-lifetime HWM, descriptors and I/O. Compare cost per tick,
+capture, active item, selected deal and byte before attributing growth to history.
+Sampling another idle tester's retained cache does not measure the active EA.
+
+For the pinned runtime plan, each long job has a 14,400-second wall limit,
+100 GiB minimum free disk, 1.5 GiB available memory and 300-second stalled-output
+guard. Save the exact job ID at launch, sample progress/resources and stop only
+that owned tester if a guard fires. Retain incomplete data and the stop reason.
+Other workloads require explicit guards appropriate to their measured size.
+Full-history acceptance requires natural sealing, strict intake and reconciled
+source coverage/ticks. If its baseline cannot finish, compare retained prefixes
+and report full-history speed as unmeasured.
+
+The runtime plan's D10 explicitly hands its remaining full runs to the operator.
+Use the [manual handoff](../research/model-feature-producer-handoff.md#manual-full-history-handoff)
+for fresh full-run IDs/settings after D11's short-tested readiness repair.
+Start one engine at a time with the tester idle. The automatic queue/guard loop
+is disabled; apply the same resource limits manually. Closing that plan does
+not certify its pending full datasets.
 
 Positive execution delay is an intentional simulation choice. Decision D07 uses
 zero-delay runs for strict dataset acceptance during this performance-only plan,

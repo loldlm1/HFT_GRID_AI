@@ -1,6 +1,6 @@
 # HFT Grid AI - Project Instructions
 
-Current [execution plan](mql5-model-feature-framework-plan.md).
+Current [execution plan](mql5-model-runtime-optimization-plan.md).
 Retain trading rules; Candle visual review is deferred.
 
 ## Start Here
@@ -17,21 +17,21 @@ Engines: `PIVOT_MACRO_V1` and `CANDLE_PATTERN_ATR_V2`.
 ## Skills And Execution
 
 - `planner`: proposals/saved/sprint plans; native behavior for short chat plans.
-- `$codex-agentic-stack:on-demand-skills`: bounded metadata search; one pinned
-  bundle for MQL5/Python gaps under local contracts.
-- `$codex-agentic-stack:understand-anything`: scoped external graphs for unfamiliar
-  cross-module work; reuse fresh graphs, verify source and report gaps.
+- `$codex-agentic-stack:on-demand-skills`: bounded search; one pinned MQL5/Python
+  bundle under local contracts.
+- `$codex-agentic-stack:understand-anything`: scoped graphs for unfamiliar work;
+  reuse fresh graphs, verify source and report gaps.
 - `$codex-agentic-stack:token-saver-orchestrator`: RTK-first, exact failure evidence.
-- `openai-docs`: Codex guidance. No copied skills/hooks or plugin-cache edits.
-- Planning/review grants no execution. Retain scope, answers and pending questions
-  across interruptions using Planner state.
+- `openai-docs`: Codex. No copied skills/hooks or plugin-cache edits.
+- Planning/review grants no execution. Preserve scope, answers and pending
+  questions in Planner state.
 - One agent/writer per worktree; delegate only if authorized. Stop on unexpected
   edits; preserve others' work and stage reviewed paths. Validate/commit each sprint
   before advancing; record rollback parents. Never amend/rewrite history.
 
 ## Response Style
 
-- Always number main reply points; use bullets for details.
+- Number main reply points; use bullet details.
 
 ## Critical Runtime Boundaries
 
@@ -102,30 +102,32 @@ Use 2 spaces, `snake_case` variables, `CamelCase` functions, `ALL_CAPS` constant
 Avoid `auto`, lambdas, range-for, unchecked calls and needless repeated queries.
 Deletion requires non-use/equivalence proof, including callbacks/fixture discovery.
 
-Every sprint: exact reference sweeps, include tracing, broker/research review and
-`git diff --check`. Run existing Python tests for affected tooling/fixtures.
-No new MQL5 harnesses, test EAs/scripts, CI or test infrastructure. Reuse unchanged
-passing evidence; report unrun gates accurately.
+Every sprint: exact reference sweeps, include tracing, broker/research review,
+`git diff --check` and affected existing Python checks. No new MQL5 harnesses,
+test EAs/scripts, CI or test infrastructure. Reuse unchanged evidence; report unrun gates.
 
-Recompile for source/include/compiler changes or an explicit gate. Discover MCP
-schemas: `get_workspace_info` before other MetaEditor operations, then `compile_file`.
+New engines/features: [performance contract](docs/architecture/market-data-broker-executor.md#performance-contract).
+Bound work/state, declare invalidation, reuse providers and prove exact behavior
+and measured release gains. Shared changes validate both engines.
+
+Recompile for source/include/compiler changes or an explicit gate. Discover MCP:
+`get_workspace_info` before MetaEditor operations, then `compile_file`.
 Require `0 errors, 0 warnings` and regenerated `.ex5` metadata. Fallback only when
 MCP cannot execute; record why. New behavior needs human tester/chart acceptance.
 
 ## Documentation And Artifacts
 
-Edit guide/index owners in place; new docs need distinct purposes.
+Edit doc owners in place; new docs need distinct purposes.
 AGENTS: max 160 lines / 8 KiB. Current status: `docs/README.md` only.
-Keep one current plan. Retire superseded tracked docs after preserving unique
-facts and Git commit/path recovery. Retain current evidence, open gates and
-downstream contracts. Preserve dated facts/hashes; edit only navigation or
-explicit annotations. Never restart old plans.
+Keep one current plan. Archive superseded plans with Git commit/path recovery;
+retain unique facts, current evidence, open gates and downstream contracts.
+Preserve dated facts/hashes; edit only navigation or annotations. Never restart old plans.
 
-Validate links/anchors, versions, requirement ownership and ignores. Keep private
-data/logs/binaries/backups untracked. Use ignored `.codex-hook-state/` and
+Validate links/anchors, versions, owners and ignores. Keep private artifacts
+untracked. Use ignored `.codex-hook-state/` and
 `.codex-artifacts/`; preserve operator handoffs, original/recovered data, shared
 terminal folders and global Codex/plugin state.
 
-No live rollout. Chart, broker-equivalence and recovered-run gates remain in the
-index. Deployment requires older positions flat, hedging and one instance per
+No live rollout. The index retains chart, broker/feed and recovery gates.
+Deployment requires older positions flat, hedging and one instance per
 account/symbol. Tool approval is not trading authority.
