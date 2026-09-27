@@ -8,6 +8,68 @@ This supplement adds two producer profiles and a downstream selection contract.
 Backend implementation, intake performance acceptance and live rollout are not
 included. The [current index](../README.md) owns execution and human-review status.
 
+## Selected Backend Datasets
+
+As requested on 2026-09-27, these are the only native run IDs selected for this
+backend handoff. Selection does not establish acceptance: use the status below
+before intake, discovery or WFO. Earlier full/year/week runs mentioned in either
+handoff remain historical validation evidence, not additional intake candidates.
+Retain synthetic acceptance/refusal examples for regression checks.
+
+| Selected run ID | Declared engine / producer | Validation and permitted use |
+| --- | --- | --- |
+| `CANDLE_PATTERNS_XAUUSD_4Y_V2` | `CANDLE_PATTERN_ATR_V3` / `2.10` | **Local strict validation PASS:** all eleven files, row/clock/reference/semantic checks and unchanged source hashes; `OK/NATURAL/NONE` seal. Accepted input for backend validation; backend READY checks still apply. |
+| `PIVOT_XAUUSD_4Y_V2` | `PIVOT_MACRO_V2` / `2.10` | **Blocked:** `FAILED/CENSORED`, `RUN_END_CLOSE_OBSERVATION_UNAVAILABLE`. Retain for diagnosis and intake-refusal verification only; never publish READY or include in research statistics. |
+
+Both directories are under
+`Common/Files/MQL5ModelDatasetV1/runs/`. The current Linux root is
+`/home/admin/.wine/drive_c/users/admin/AppData/Roaming/MetaQuotes/Terminal/Common/Files/MQL5ModelDatasetV1/runs/`.
+Keep complete source directories immutable and put receipts outside them.
+
+Both manifests declare H1 Macro / M3 Micro, `EXNESS_SESSION`, raw symbol
+`XAUUSD_Exness_2015`, point/tick size `0.001`, compiler build `6230` and
+`ENTRY_PLUS_MACRO`. Their summaries report effective raw coverage from
+`2015-08-11T00:00:01.000` through `2019-08-09T20:57:59.621` on the declared
+`UTC_SHIFT_0` broker basis. The run name is not coverage or build provenance.
+Both retain `mapping_status=UNMAPPED`; do not infer a verified canonical symbol
+from the folder or symbol name. Match each complete engine/outcome tuple and
+preserve its separate research identity.
+
+Candle reports partial startup warmup (1,372 prior closed M1 bars) and
+`feature_gap_count=32657`. Preserve the exported missingness and eligibility
+flags; successful structural validation does not mean every feature is available
+for every signal. Its summary declares 897,360 trials and matching outcomes.
+
+Pivot's `FAILED.txt` repeats the summary failure. The current strict reader
+refuses the extra failure marker with `Unexpected/missing run files`; its seal
+also independently violates natural-success requirements. The summary declares
+461,232 trials but only 461,220 outcomes. Removing the marker would not make this
+a valid dataset. The producer emits this failure when deferred broker-close
+facts remain ahead of the last observed quote at finalization; it cannot invent
+a later observation. A successful fresh Pivot export with a new run ID and full
+strict validation is required before Pivot acceptance. Preserve this failed
+original and explicitly update this selection when a replacement is available.
+No replacement run is implicitly selected or authorized for generation here.
+
+The four-year sources cover this gold/H1/M3 configuration. They cannot alone
+validate EURUSD point handling, other Macro durations or every boundary/failure
+case; the retained cross-symbol, timeframe and synthetic receipts below supply
+that separate regression evidence. Backend offset/limit/WFO tests and its own
+source-to-stored/READY checks remain necessary, even for a locally accepted run.
+
+Selection receipts live in ignored
+`.codex-artifacts/entry-quality-lifecycle/handoff-selection-20260927/`:
+`source-preflight.json` records manifest/seal facts and all file SHA-256 values;
+`selection-validation.json` records strict-reader results and source immutability.
+`CANDLE_PATTERNS_XAUUSD_4Y_V2-strict.json` contains the passing row counts and
+per-file hashes (receipt SHA-256
+`4548d8573cec740569ee49a276601a7af3afd1ecbf7af92b954f36cf04f0898d`).
+The full local Candle check took 671.950 seconds; this is a validation measurement,
+not dataset generation or backend intake performance. Pivot's strict refusal
+is recorded in its `-strict.log`; no passing Pivot receipt exists.
+The original S5 archive and its dated pins remain unchanged; its native year
+receipts do not certify these subsequently generated four-year sources.
+
 ## Delivered Producer Profiles
 
 Family `MQL5_MODEL_FEATURES`, core schema `1`, extension schema `1`, feature set
@@ -207,6 +269,10 @@ into backend runtime or add a second ingestion service. The measured local reade
 times below are neither backend benchmarks nor a promise of upload speed.
 
 ## Pins, Examples And Validation
+
+This section retains implementation and regression evidence. For the current
+backend source selection and acceptance status, use
+[Selected Backend Datasets](#selected-backend-datasets) above.
 
 Final MQL source commit: `eb816df65bee051e8ae906cc90d89b7eb6ee386f`.
 S4 evidence commit: `afda9d45cec92c38c9664c689267feffe65c259a`.

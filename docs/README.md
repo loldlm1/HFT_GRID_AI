@@ -52,6 +52,19 @@ hashes are unchanged. The old handoff remains complete. Backend work was read-on
 its ongoing optimization is preserved. No tester job remains active. Concrete
 human review cases are linked in the handoff; no live rollout is authorized.
 
+The user's 2026-09-27 [backend dataset selection](research/entry-quality-lifecycle-backend-handoff.md#selected-backend-datasets)
+names only `CANDLE_PATTERNS_XAUUSD_4Y_V2` and `PIVOT_XAUUSD_4Y_V2`.
+Both declare the new 2.10 profiles, gold H1/M3 and effective raw coverage
+2015-08-11 through 2019-08-09. Candle passes full local strict validation across
+all eleven files with an OK/NATURAL seal and unchanged source hashes. Pivot is
+FAILED/CENSORED with
+`RUN_END_CLOSE_OBSERVATION_UNAVAILABLE` and is refused by the strict reader:
+it is a diagnostic/refusal source, not accepted research data. Pivot acceptance
+requires a fresh successful export and an explicit replacement in the selection.
+Earlier run IDs and the original S5 bundle remain historical regression evidence.
+Read-only receipts are in private `handoff-selection-20260927/` under the
+entry-quality evidence root; neither source nor backend code is changed.
+
 The requested XAUUSD/EURUSD closeout audit passes for both engines, using the
 unchanged S4 native week datasets and exact source/EX5/TSV hashes. It independently
 recalculates 14,166 trial proofs in points and checks 3,935 entry audit rows:
@@ -69,8 +82,9 @@ Start a new thread from this index, the
 [runtime contract](architecture/market-data-broker-executor.md) and
 [producer handoff](research/model-feature-producer-handoff.md). Corrected
 full-history generation and strict intake remain a manual follow-up; this
-documentation closeout does not verify subsequent operator runs. Check actual
-run files and tester state before continuing that work.
+earlier documentation closeout did not verify subsequent operator runs. The
+four-year selection above records its separate inspection; check actual run
+files and tester state before continuing other full-history work.
 
 The Pivot EA entrypoint is now `Pivot_Macro.mq5`, compiled as `Pivot_Macro.ex5`
 for clear MT5 selection. The naming follow-up preserves version `2.00`, engine

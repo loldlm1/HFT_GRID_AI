@@ -4,6 +4,10 @@ This completed handoff retains its original 2.00 profiles and dated evidence.
 The [2.10 entry-quality/lifecycle supplement](entry-quality-lifecycle-backend-handoff.md)
 delivers new profiles and the backend offset/limit contract independently; it
 does not reopen this delivery or replace its retained operational follow-ups.
+For the current backend intake candidates, use only the supplement's
+[selected datasets and acceptance status](entry-quality-lifecycle-backend-handoff.md#selected-backend-datasets).
+Older run IDs below retain their dated evidence and are not additional sources
+for the current backend handoff.
 
 This handoff defines what a later backend plan can consume from the MQL5
 producers. The [canonical contract](../architecture/model-feature-dataset.md)
