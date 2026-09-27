@@ -1,4 +1,5 @@
 from .test_contract import RunFixtureCase
+from decimal import Decimal
 
 
 class CandleTests(RunFixtureCase):
@@ -42,3 +43,37 @@ class CandleTests(RunFixtureCase):
 
     def test_virtual_costs_not_invented(self):
         self.reject(lambda t:next(r for r in t['outcomes.tsv'] if r['role']=='VIRTUAL').update(costs='0',net_profit='2'))
+
+
+class CandleAdmissionTests(RunFixtureCase):
+    engine = 'CANDLE_PATTERN_ATR_V3'
+
+    def test_new_profile_both_directions(self):
+        self.validate()
+
+    def test_equality_is_admitted_and_one_point_below_is_rejected(self):
+        # Risk is 1.00, spread 0.10, tick 0.01: broker distance 69 points
+        # makes the independently calculated minimum exactly 1.00.
+        for trial in self.tables['trials.tsv']:
+            trial.update(stops_level_points='10', freeze_level_points='69', minimum_risk_distance_points='100')
+        self.validate()
+        for trial in self.tables['trials.tsv']:
+            trial.update(freeze_level_points='70', minimum_risk_distance_points='101')
+        from ..reader import ContractError
+        with self.assertRaisesRegex(ContractError, 'False distance eligibility'):
+            self.validate()
+
+    def test_wrong_multiplier_or_partial_proof_fails(self):
+        self.reject(lambda t: t['trials.tsv'][0].update(minimum_risk_distance_points='11'))
+
+    def test_missing_admission_fact_fails(self):
+        self.reject(lambda t: t['trials.tsv'][0].update(freeze_level_points=None))
+
+    def test_no_retroactive_fill_gate(self):
+        outcome = self.tables['outcomes.tsv'][0]
+        # The fill differs from the submitted quote; proof remains tied to request.
+        entry = Decimal(outcome['entry_price']) + Decimal('0.01')
+        gross = Decimal(outcome['exit_price']) - entry
+        outcome.update(entry_price=str(entry), fill_deviation_points='1', gross_profit=str(gross),
+                       net_profit=str(gross-Decimal('0.1')), gross_r=str(gross/(entry-Decimal(outcome['sl']))))
+        self.validate()

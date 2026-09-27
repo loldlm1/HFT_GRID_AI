@@ -5,8 +5,20 @@ Updated 2026-09-27. Both EAs are `2.00`, common schema `1`: Pivot
 This index owns changing status; guides own procedures and dated evidence keeps
 its original results.
 
-All five runtime optimization sprints are committed through `8cfb9dc`; no
-execution plan remains active. Start a new thread from this index, the
+The [entry-quality and lifecycle plan](../mql5-entry-quality-lifecycle-plan.md)
+is active at Sprint 1. New reader profiles are registered; both producers
+still use their existing 2.00 policies. Baselines and execution receipts live in
+ignored `.codex-artifacts/entry-quality-lifecycle/`. The user authorized all five
+sprints; backend implementation and live rollout remain excluded.
+Sprint 1 passes 86 shared Python tests, generated-header checks, four strict native
+week exports and exact baseline/current TSV, broker and statistics comparisons
+for both old profiles. Baseline/current EAs compile at build 6230 AVX2 with zero
+errors/warnings. The native fallback uses command-file quoting and `/avx2` because
+the compile MCP is unavailable. Tester catalog refresh is required after CLI
+compilation; hidden artifact folders are excluded from its program catalog.
+
+All five prior runtime optimization sprints are committed through `8cfb9dc`.
+Start a new thread from this index, the
 [runtime contract](architecture/market-data-broker-executor.md) and
 [producer handoff](research/model-feature-producer-handoff.md). Corrected
 full-history generation and strict intake remain a manual follow-up; this

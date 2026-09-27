@@ -224,7 +224,8 @@ bool ModelOpen(const ModelCaptureConfig &config)
     if(!ok) { ModelFail("INITIAL_HEADER_" + ModelFileName(file)); return false; }
   }
   g_model_open = true;
-  bool candle = config.engine == "CANDLE_PATTERN_ATR_V2";
+  bool candle = ModelEngineKind(config.engine) == "CANDLE";
+  if(ModelEngineKind(config.engine) == "") { ModelFail("UNKNOWN_ENGINE"); return false; }
   string keys[] = {"dataset_family", "schema_version", "engine", "feature_set", "extension_version", "outcome_policy",
     "run_id", "producer_version", "compiler_build", "symbol", "broker", "feed", "canonical_symbol", "mapping_status",
     "macro_seconds", "micro_seconds", "structure_seconds", "bands_period", "bands_shift", "bands_deviation", "bands_price",
@@ -232,13 +233,13 @@ bool ModelOpen(const ModelCaptureConfig &config)
     "average_period", "feature_shifts", "warmup_limit", "catchup_limit", "structure_policy", "broker_session", "broker_time_basis",
     "analysis_clock_policy", "lot_type", "lot_size", "reference_balance", "broker_cap", "virtual_cap", "protection", "expiry", "reentry", "ratios"};
   string values[] = {"MQL5_MODEL_FEATURES", "1", config.engine, "macro_micro_standard_v1", "1",
-    candle ? "CANDLE_ATR_OUTCOME_V1" : "PIVOT_MACRO_OUTCOME_V1", config.run_id, "2.00", ModelInteger(__MQLBUILD__),
+    ModelOutcomePolicy(config.engine), config.run_id, ModelProducerVersion(config.engine), ModelInteger(__MQLBUILD__),
     config.symbol, ModelSafeMetadata(AccountInfoString(ACCOUNT_COMPANY)), ModelSafeMetadata(AccountInfoString(ACCOUNT_SERVER)), "UNMAPPED", "UNMAPPED",
     ModelInteger(PeriodSeconds(config.macro)), ModelInteger(PeriodSeconds(config.micro)), "60", "21", "0", "2", "PRICE_WEIGHTED",
     "5", "3", "3", "MODE_SMA", "STO_CLOSECLOSE", "13", "1", "5", "6", "4096", "256", "STOCHASTIC_CLOSE_M1_V1",
     config.exness ? "EXNESS_SESSION" : "FIXED_TIME_SESSIONS", config.exness ? "UTC_SHIFT_0" : "BROKER_NATIVE",
     config.exness ? "EXNESS_NEW_YORK_V1" : "BROKER_FIXED_V1", config.lot_type, ModelNumber(config.lot_size), ModelNumber(config.reference_balance),
-    ModelInteger(config.broker_cap), ModelInteger(config.virtual_cap), "FIXED_SUBMITTED", candle ? "ENTRY_PLUS_MACRO" : "NONE",
+    ModelInteger(config.broker_cap), ModelInteger(config.virtual_cap), "FIXED_SUBMITTED", ModelExpiryPolicy(config.engine),
     candle ? "BROKER_SL_ONCE" : "NONE", candle ? "1,2,3" : "1,2,3,5"};
   if(ArraySize(keys) != ArraySize(values)) { ModelFail("MANIFEST_LAYOUT"); return false; }
   ulong fingerprint = 0xcbf29ce484222325;

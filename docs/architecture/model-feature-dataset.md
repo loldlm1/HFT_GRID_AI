@@ -26,6 +26,51 @@ facts through shared data services. Feature availability never controls orders.
 
 ## Wire Rules
 
+### Registered Entry-Quality Profiles
+
+The strict reader retains both historical profiles and registers these new
+profiles. Producer integration is tracked in the current index; registration
+alone does not change an EA's behavior. Core/extension versions, table sets and
+headers remain 1/1 and unchanged.
+
+| Engine | Producer | Outcome policy | Admission | Expiry |
+| --- | --- | --- | --- | --- |
+| `PIVOT_MACRO_V1` | 2.00 | `PIVOT_MACRO_OUTCOME_V1` | legacy | NONE |
+| `CANDLE_PATTERN_ATR_V2` | 2.00 | `CANDLE_ATR_OUTCOME_V1` | legacy | ENTRY_PLUS_MACRO |
+| `PIVOT_MACRO_V2` | 2.10 | `PIVOT_MACRO_OUTCOME_V2` | SPREAD_3_STOPS_FREEZE_TICK_V1 | ENTRY_PLUS_MACRO |
+| `CANDLE_PATTERN_ATR_V3` | 2.10 | `CANDLE_ATR_OUTCOME_V2` | SPREAD_3_STOPS_FREEZE_TICK_V1 | ENTRY_PLUS_MACRO |
+
+For the new admission policy, `spread = Ask - Bid` and minimum price risk is
+`3 * spread + max(stops_level_points, freeze_level_points) * point + tick_size`.
+Risk is fresh Ask minus normalized SL for a buy, or normalized SL minus fresh
+Bid for a sell. Equality admits, with at most `tick_size * 0.000001` floating
+comparison tolerance. No stop widening, new public parameter or retrospective
+fill/spread rejection is permitted. Existing broker legality checks still apply.
+
+Each admitted trial and computed distance rejection requires `entry_bid`,
+`entry_ask`, `point_size`, `trade_tick_size`, `spread_points`,
+`stops_level_points`, `freeze_level_points`, `normalized_risk_distance_price`,
+`normalized_risk_distance_points`, `minimum_risk_distance_points` and
+`distance_eligible`. Missing geometry/specification has an explicit rejection
+reason and null unavailable facts; it never asserts a successful distance check.
+Rejected attempts have no entered outcome or target slot. Parity copies the
+accepted request exactly, independently of research feature availability.
+
+New Pivot deadlines use each lane's raw entry plus native `PeriodSeconds(Macro)`
+in milliseconds, including MN1's fixed native duration. The broker trial retains
+the submitted reference deadline; its outcome uses the actual confirmed fill.
+Parity retains the request clock. Before the deadline TP/SL can win; at or after
+the deadline an actual executable exit is `TIME_EXIT`, retaining native broker
+reason separately. Deadline, observation and actual close are distinct facts.
+Sparse quotes do not fabricate a deadline price. Unentered and run-censored
+states remain non-losses. These same clock distinctions already apply to Candle.
+
+Policy identity is bound through the exact engine/outcome tuple and compatibility
+signature. The generated consumer descriptor declares its fixed coefficients;
+no undeclared manifest key or silent upgrade of old datasets is allowed.
+
+### Serialization
+
 TSV uses UTF-8, a single exact header, CRLF producer records, no quoted cells,
 no embedded tab/newline/NUL, and the literal `\N` for null. Decimal values are
 finite runtime doubles serialized with 17 significant digits, parsed from their

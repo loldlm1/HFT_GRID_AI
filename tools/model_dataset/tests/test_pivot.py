@@ -41,3 +41,29 @@ class PivotTests(RunFixtureCase):
 
     def test_only_structural_one_r_can_send(self):
         self.reject(lambda t:next(r for r in t['trials.tsv'] if r['role']=='BROKER').update(entry_policy='MIDPOINT_50'))
+
+
+class PivotExpiryTests(RunFixtureCase):
+    engine = 'PIVOT_MACRO_V2'
+
+    def test_new_profile_and_per_entry_deadline(self):
+        self.assertEqual(self.validate()['counts']['trials.tsv'], 10)
+        self.assertNotEqual(self.tables['trials.tsv'][0]['deadline_time_msc'],
+                            self.tables['trials.tsv'][-1]['deadline_time_msc'])
+
+    def test_deadline_cannot_follow_origin_for_later_midpoint(self):
+        self.reject(lambda t: t['trials.tsv'][-1].update(deadline_time_msc=t['trials.tsv'][0]['deadline_time_msc']))
+
+    def test_equal_deadline_is_time_exit(self):
+        outcome = self.tables['outcomes.tsv'][0]
+        outcome.update(status='TIME_EXIT', exit_time_msc=outcome['deadline_time_msc'],
+                       observed_time_msc=outcome['deadline_time_msc'], duration_ms='3600000',
+                       binary_label=None, binary_eligible='0', exclusion_reason='TIME_EXIT')
+        self.validate()
+        self.reject(lambda t: t['outcomes.tsv'][0].update(status='TP_FIRST', binary_label='1', binary_eligible='1'))
+
+    def test_legacy_tuple_cannot_claim_new_expiry(self):
+        self.reject(lambda t: next(r for r in t['run_manifest.tsv'] if r['key']=='outcome_policy').update(value='PIVOT_MACRO_OUTCOME_V1'))
+
+    def test_timeout_requires_observed_executable_price(self):
+        self.reject(lambda t: t['outcomes.tsv'][0].update(status='TIME_EXIT', exit_price=None))

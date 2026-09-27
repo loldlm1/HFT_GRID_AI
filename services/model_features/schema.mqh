@@ -835,7 +835,56 @@ bool ModelEngineFile(const int file, const string engine)
     return file == 0 || file == 1 || file == 2 || file == 3 || file == 4 || file == 5 || file == 6 || file == 7 || file == 8 || file == 9;
   if(engine == "CANDLE_PATTERN_ATR_V2")
     return file == 0 || file == 1 || file == 2 || file == 3 || file == 4 || file == 5 || file == 6 || file == 7 || file == 8 || file == 10 || file == 11;
+  if(engine == "PIVOT_MACRO_V2")
+    return file == 0 || file == 1 || file == 2 || file == 3 || file == 4 || file == 5 || file == 6 || file == 7 || file == 8 || file == 9;
+  if(engine == "CANDLE_PATTERN_ATR_V3")
+    return file == 0 || file == 1 || file == 2 || file == 3 || file == 4 || file == 5 || file == 6 || file == 7 || file == 8 || file == 10 || file == 11;
   return false;
+}
+
+string ModelEngineKind(const string engine)
+{
+  if(engine == "PIVOT_MACRO_V1") return "PIVOT";
+  if(engine == "CANDLE_PATTERN_ATR_V2") return "CANDLE";
+  if(engine == "PIVOT_MACRO_V2") return "PIVOT";
+  if(engine == "CANDLE_PATTERN_ATR_V3") return "CANDLE";
+  return "";
+}
+
+string ModelProducerVersion(const string engine)
+{
+  if(engine == "PIVOT_MACRO_V1") return "2.00";
+  if(engine == "CANDLE_PATTERN_ATR_V2") return "2.00";
+  if(engine == "PIVOT_MACRO_V2") return "2.10";
+  if(engine == "CANDLE_PATTERN_ATR_V3") return "2.10";
+  return "";
+}
+
+string ModelOutcomePolicy(const string engine)
+{
+  if(engine == "PIVOT_MACRO_V1") return "PIVOT_MACRO_OUTCOME_V1";
+  if(engine == "CANDLE_PATTERN_ATR_V2") return "CANDLE_ATR_OUTCOME_V1";
+  if(engine == "PIVOT_MACRO_V2") return "PIVOT_MACRO_OUTCOME_V2";
+  if(engine == "CANDLE_PATTERN_ATR_V3") return "CANDLE_ATR_OUTCOME_V2";
+  return "";
+}
+
+string ModelExpiryPolicy(const string engine)
+{
+  if(engine == "PIVOT_MACRO_V1") return "NONE";
+  if(engine == "CANDLE_PATTERN_ATR_V2") return "ENTRY_PLUS_MACRO";
+  if(engine == "PIVOT_MACRO_V2") return "ENTRY_PLUS_MACRO";
+  if(engine == "CANDLE_PATTERN_ATR_V3") return "ENTRY_PLUS_MACRO";
+  return "";
+}
+
+string ModelEntryAdmissionPolicy(const string engine)
+{
+  if(engine == "PIVOT_MACRO_V1") return "LEGACY";
+  if(engine == "CANDLE_PATTERN_ATR_V2") return "LEGACY";
+  if(engine == "PIVOT_MACRO_V2") return "SPREAD_3_STOPS_FREEZE_TICK_V1";
+  if(engine == "CANDLE_PATTERN_ATR_V3") return "SPREAD_3_STOPS_FREEZE_TICK_V1";
+  return "";
 }
 
 #endif

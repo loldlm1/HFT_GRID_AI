@@ -51,11 +51,11 @@ def write_tables(path, tables, session="FIXED_TIME_SESSIONS"):
 def make_run(path, engine="CANDLE_PATTERN_ATR_V2", *, empty=False, session="FIXED_TIME_SESSIONS"):
     path = Path(path)
     profile = PROFILES[engine]
-    candle = engine == "CANDLE_PATTERN_ATR_V2"
+    candle = profile.kind == "CANDLE"
     tables = {t.name: [] for t in profile.tables}
     m = {key: "NONE" for key in MANIFEST_KEYS}
     m.update(FIXED_MANIFEST)
-    m.update(engine=engine, outcome_policy=profile.outcome_policy, run_id=path.name, config_id="SYNTHETIC_CONFIG",
+    m.update(engine=engine, producer_version=profile.producer_version, outcome_policy=profile.outcome_policy, run_id=path.name, config_id="SYNTHETIC_CONFIG",
              compiler_build="6184", symbol="SYNTHETIC_TEST", broker="SYNTHETIC", feed="SYNTHETIC",
              canonical_symbol="UNMAPPED", mapping_status="UNMAPPED", point="0.01", digits="2", tick_size="0.01",
              volume_min="0.01", volume_max="100", volume_step="0.01", contract_size="100",
@@ -64,7 +64,7 @@ def make_run(path, engine="CANDLE_PATTERN_ATR_V2", *, empty=False, session="FIXE
              broker_time_basis="BROKER_NATIVE" if session == "FIXED_TIME_SESSIONS" else "UTC_SHIFT_0",
              analysis_clock_policy="BROKER_FIXED_V1" if session == "FIXED_TIME_SESSIONS" else "EXNESS_NEW_YORK_V1",
              lot_type="EXECUTION_LOT_FIXED_SIZE", lot_size="0.01", virtual_cap="6144" if candle else "2048",
-             expiry="ENTRY_PLUS_MACRO" if candle else "NONE", reentry="BROKER_SL_ONCE" if candle else "NONE",
+             expiry=profile.expiry, reentry="BROKER_SL_ONCE" if candle else "NONE",
              ratios="1,2,3" if candle else "1,2,3,5")
     tables["run_manifest.tsv"] = [dict(key=k, value=m[k]) for k in MANIFEST_KEYS]
     def append(name, **values):
@@ -137,15 +137,23 @@ def make_run(path, engine="CANDLE_PATTERN_ATR_V2", *, empty=False, session="FIXE
                 trial_id = f"{attempt_id}:{role}:{policy}:{rr}"
                 append("trials.tsv", trial_id=trial_id, attempt_id=attempt_id, role=role, entry_policy=policy,
                        rr=rr, declared_time_msc=NOW, entry_time_msc=at,
-                       deadline_time_msc=NOW+3600000 if candle else None, entry_price=entry, sl=sl, tp=tp,
+                       deadline_time_msc=at+3600000 if profile.expiry == "ENTRY_PLUS_MACRO" else None, entry_price=entry, sl=sl, tp=tp,
                        volume="0.01", eligibility="ACCEPTED" if role=="BROKER" else "ELIGIBLE")
                 if policy == "MIDPOINT_50":
                     tables["trials.tsv"][-1].update(entry_bid=str(entry), entry_ask=str(entry))
+                if profile.entry_policy != "LEGACY":
+                    entry_bid, entry_ask = (entry, entry) if policy == "MIDPOINT_50" else (bid, ask)
+                    risk = direction * (entry - sl)
+                    tables["trials.tsv"][-1].update(entry_bid=str(entry_bid), entry_ask=str(entry_ask),
+                        point_size="0.01", trade_tick_size="0.01", stops_level_points="0", freeze_level_points="0",
+                        spread_points=str((entry_ask-entry_bid)/Decimal("0.01")),
+                        normalized_risk_distance_price=str(risk), normalized_risk_distance_points=str(risk/Decimal("0.01")),
+                        minimum_risk_distance_points=str((3*(entry_ask-entry_bid)+Decimal("0.01"))/Decimal("0.01")), distance_eligible="1")
                 gross = direction*(tp-entry)
                 append("outcomes.tsv", trial_id=trial_id, attempt_id=attempt_id, role=role, rr=rr,
                        status="TP_FIRST", broker_reason="DEAL_REASON_TP" if role=="BROKER" else None,
                        entry_time_msc=at, entry_macro_open_time_msc=MACRO_OPEN,
-                       deadline_time_msc=at+3600000 if candle else None, exit_time_msc=at+120000,
+                       deadline_time_msc=at+3600000 if profile.expiry == "ENTRY_PLUS_MACRO" else None, exit_time_msc=at+120000,
                        observed_time_msc=at+120000, entry_price=entry, exit_price=tp, sl=sl, tp=tp,
                        volume="0.01", gross_profit=gross, costs="-0.1" if role=="BROKER" else None,
                        net_profit=gross-Decimal("0.1") if role=="BROKER" else None, gross_r=rr,

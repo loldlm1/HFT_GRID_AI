@@ -48,7 +48,7 @@ def validate(run):
         require(integer(row["decision_time_msc"]) >= integer(signal["signal_time_msc"]) and integer(row["sequence"]) >= integer(signal["sequence"]), "Attempt precedes discovery")
         require(integer(snapshot["observed_time_msc"]) <= integer(row["decision_time_msc"]) and integer(snapshot["sequence"]) <= integer(row["sequence"]), "Future snapshot")
         require(row["macro_window_id"] == snapshot["macro_window_id"], "Snapshot/window identity mismatch")
-        if manifest["engine"] == "CANDLE_PATTERN_ATR_V2":
+        if run.profile.kind == "CANDLE":
             require(snapshot["observed_time_msc"] == row["decision_time_msc"] and snapshot["bid"] == row["bid"] and snapshot["ask"] == row["ask"], "Candle recaptured decision quote")
     gaps = 0
     for row in run.rows("feature_snapshots.tsv"):
@@ -56,11 +56,52 @@ def validate(run):
         gaps += row["complete"] == "0"
     require(integer(run.summary["feature_gap_count"]) == gaps, "Feature gap count mismatch")
     validate_trials(run, tick)
-    if manifest["engine"] == "CANDLE_PATTERN_ATR_V2":
+    if run.profile.entry_policy != "LEGACY":
+        validate_entry_admission(run)
+    if run.profile.kind == "CANDLE":
         from .engines.candle import validate as engine_validate
-    else:
+    elif run.profile.kind == "PIVOT":
         from .engines.pivot import validate as engine_validate
+    else:
+        require(False, "Unsupported engine semantics")
     engine_validate(run)
+
+
+def validate_entry_admission(run):
+    """Verify admission from submitted quotes, never from eventual fills/outcomes."""
+    fields = ("entry_bid", "entry_ask", "point_size", "trade_tick_size", "spread_points",
+              "stops_level_points", "freeze_level_points", "normalized_risk_distance_price",
+              "normalized_risk_distance_points", "minimum_risk_distance_points", "distance_eligible")
+    for trial in run.rows("trials.tsv"):
+        admitted = trial["eligibility"] in {"ACCEPTED", "ELIGIBLE"}
+        if not admitted and trial["distance_eligible"] is None:
+            require(trial["eligibility"] != "INELIGIBLE_DISTANCE", "Missing distance rejection evidence")
+            continue  # Geometry/specification failures cannot invent a computed minimum.
+        require(all(trial[k] is not None for k in fields), "Incomplete entry admission evidence")
+        bid, ask, point, tick = (number(trial[k]) for k in fields[:4])
+        require(0 < bid <= ask and point > 0 and tick > 0, "Invalid admission quote/specification")
+        require(point == number(run.manifest["point"]) and tick == number(run.manifest["tick_size"]), "Admission specification changed")
+        stops, freeze = (number(trial[k]) for k in ("stops_level_points", "freeze_level_points"))
+        require(min(stops, freeze) >= 0, "Negative broker distance")
+        attempt = run.one("entry_attempts.tsv", "attempt_id", trial["attempt_id"])
+        direction = 1 if attempt["direction"] == "BUY" else -1
+        entry = ask if direction == 1 else bid
+        tolerance = tick * Decimal("0.000001")
+        near(number(trial["entry_price"]), entry, "Admission executable side", tolerance)
+        require(trial["sl"] is not None, "Admission without structural stop")
+        risk = direction * (entry - number(trial["sl"]))
+        minimum = 3 * (ask - bid) + max(stops, freeze) * point + tick
+        near(number(trial["spread_points"]) * point, ask - bid, "Admission spread", tolerance)
+        near(number(trial["normalized_risk_distance_price"]), risk, "Admission price risk", tolerance)
+        near(number(trial["normalized_risk_distance_points"]) * point, risk, "Admission point risk", tolerance)
+        near(number(trial["minimum_risk_distance_points"]) * point, minimum, "Admission minimum", tolerance)
+        allowed = risk > 0 and risk + tolerance >= minimum
+        require((trial["distance_eligible"] == "1") == allowed, "False distance eligibility")
+        require(not admitted or allowed, "Admitted insufficient entry distance")
+        require(trial["eligibility"] != "INELIGIBLE_DISTANCE" or not allowed, "False distance rejection")
+        if not admitted:
+            outcome = run.one("outcomes.tsv", "trial_id", trial["trial_id"])
+            require(outcome["entry_time_msc"] is None and outcome["binary_eligible"] == "0", "Rejected entry counted as trade")
 
 
 def validate_snapshot(run, row, macro, micro):
@@ -69,7 +110,7 @@ def validate_snapshot(run, row, macro, micro):
     require((integer(row["macro_seconds"]), integer(row["micro_seconds"])) == (macro, micro), "Feature role mismatch")
     for key in ("point", "tick_size"):
         require(number(row[key]) == number(run.manifest[key]), "Feature instrument specification changed")
-    expected_stage = "CANDLE_DECISION" if run.profile.engine == "CANDLE_PATTERN_ATR_V2" else "PIVOT_ORIGIN"
+    expected_stage = "CANDLE_DECISION" if run.profile.kind == "CANDLE" else "PIVOT_ORIGIN"
     require(row["capture_stage"] == expected_stage, "Unexpected capture stage")
     for role in ("macro", "micro"):
         source = [row[f"{role}_source_{s}_time_msc"] for s in range(6)]

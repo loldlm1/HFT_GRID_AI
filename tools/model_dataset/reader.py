@@ -192,10 +192,13 @@ class ModelRun(AbstractContextManager):
         require(set(m) == set(MANIFEST_KEYS), "Manifest key mismatch")
         require(m["engine"] in PROFILES, "Unknown engine")
         self.profile = PROFILES[m["engine"]]
-        for key, value in {**FIXED_MANIFEST, "outcome_policy": self.profile.outcome_policy}.items():
+        for key, value in {**FIXED_MANIFEST, "outcome_policy": self.profile.outcome_policy,
+                           "producer_version": self.profile.producer_version}.items():
             require(m[key] == value, "Manifest mismatch: " + key)
         require(m["run_id"] == self.path.name and re.fullmatch(r"[A-Za-z0-9_-][A-Za-z0-9_.-]{0,63}", m["run_id"]) and ".." not in m["run_id"], "Unsafe/mismatched run identity")
         periods = {60 * n for n in (1, 2, 3, 4, 5, 6, 10, 12, 15, 20, 30, 60, 120, 180, 240, 360, 480, 720, 1440, 10080)}
+        if self.profile.engine == "PIVOT_MACRO_V2":
+            periods.add(30 * 86400)
         macro, micro = integer(m["macro_seconds"]), integer(m["micro_seconds"])
         require(micro in periods and macro in periods and micro < macro, "Invalid timeframe ordering/support")
         for key in ("point", "tick_size", "volume_min", "volume_max", "volume_step", "contract_size", "lot_size"):

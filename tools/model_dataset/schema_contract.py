@@ -80,10 +80,16 @@ class EngineProfile:
     extension_version: str
     outcome_policy: str
     extensions: tuple[Table, ...]
+    kind: str = "FIXTURE"
+    producer_version: str = "2.00"
+    entry_policy: str = "LEGACY"
+    expiry: str = "NONE"
 
     def __post_init__(self):
         if not re.fullmatch(r"[A-Z][A-Z0-9_]+", self.engine) or self.extension_version != "1":
             raise ValueError("Invalid engine identity/version")
+        if self.kind not in {"PIVOT", "CANDLE", "FIXTURE"} or self.entry_policy not in {"LEGACY", "SPREAD_3_STOPS_FREEZE_TICK_V1"}:
+            raise ValueError("Invalid engine policy")
         names = [t.name for t in (*COMMON_TABLES, *self.extensions)]
         if len(names) != len(set(names)):
             raise ValueError("An extension cannot replace a core table")
@@ -635,8 +641,10 @@ TABLES = tuple(Table(name, _parse_fields(spec), key) for (name, spec), key in zi
 COMMON_TABLES = TABLES[:9]
 TABLE_BY_NAME = MappingProxyType({table.name: table for table in TABLES})
 PROFILES = MappingProxyType({
-    "PIVOT_MACRO_V1": EngineProfile("PIVOT_MACRO_V1", "1", "PIVOT_MACRO_OUTCOME_V1", (TABLES[9],)),
-    "CANDLE_PATTERN_ATR_V2": EngineProfile("CANDLE_PATTERN_ATR_V2", "1", "CANDLE_ATR_OUTCOME_V1", TABLES[10:]),
+    "PIVOT_MACRO_V1": EngineProfile("PIVOT_MACRO_V1", "1", "PIVOT_MACRO_OUTCOME_V1", (TABLES[9],), kind="PIVOT"),
+    "CANDLE_PATTERN_ATR_V2": EngineProfile("CANDLE_PATTERN_ATR_V2", "1", "CANDLE_ATR_OUTCOME_V1", TABLES[10:], kind="CANDLE", expiry="ENTRY_PLUS_MACRO"),
+    "PIVOT_MACRO_V2": EngineProfile("PIVOT_MACRO_V2", "1", "PIVOT_MACRO_OUTCOME_V2", (TABLES[9],), "PIVOT", "2.10", "SPREAD_3_STOPS_FREEZE_TICK_V1", "ENTRY_PLUS_MACRO"),
+    "CANDLE_PATTERN_ATR_V3": EngineProfile("CANDLE_PATTERN_ATR_V3", "1", "CANDLE_ATR_OUTCOME_V2", TABLES[10:], "CANDLE", "2.10", "SPREAD_3_STOPS_FREEZE_TICK_V1", "ENTRY_PLUS_MACRO"),
 })
 MANIFEST_KEYS = tuple("""
 dataset_family schema_version engine feature_set extension_version outcome_policy
@@ -651,7 +659,7 @@ reference_balance broker_cap virtual_cap protection expiry reentry ratios
 """.split())
 FIXED_MANIFEST = MappingProxyType(dict(
     dataset_family=FAMILY, schema_version=SCHEMA_VERSION, feature_set=FEATURE_SET,
-    extension_version="1", producer_version="2.00", structure_seconds="60",
+    extension_version="1", structure_seconds="60",
     bands_period="21", bands_shift="0", bands_deviation="2", bands_price="PRICE_WEIGHTED",
     stochastic_k="5", stochastic_d="3", stochastic_slowing="3", stochastic_method="MODE_SMA",
     stochastic_price="STO_CLOSECLOSE", atr_period="13", atr_multiplier="1", average_period="5",
@@ -673,6 +681,9 @@ def contract() -> dict:
         "dataset_family": FAMILY, "schema_version": SCHEMA_VERSION, "feature_set": FEATURE_SET,
         "manifest_keys": MANIFEST_KEYS, "fixed_manifest": dict(FIXED_MANIFEST), "summary_keys": SUMMARY_KEYS,
         "profiles": {name: {"extension_version": p.extension_version, "outcome_policy": p.outcome_policy,
+                             "kind": p.kind, "producer_version": p.producer_version,
+                             "entry_admission_policy": p.entry_policy, "expiry": p.expiry,
+                             "entry_admission": {"spread_multiplier": 3, "broker_distance": "MAX_STOPS_FREEZE", "tick_buffer": 1, "tolerance_ticks": "0.000001"} if p.entry_policy != "LEGACY" else None,
                              "files": [t.name for t in p.tables]} for name, p in PROFILES.items()},
         "tables": {t.name: {"key": t.key, "fields": [asdict(f) for f in t.fields]} for t in TABLES},
     }
@@ -746,7 +757,15 @@ def mql_header() -> str:
         indices = [TABLES.index(table) for table in profile.tables]
         condition = " || ".join(f"file == {i}" for i in indices)
         lines.extend([f'  if(engine == "{name}")', f"    return {condition};"])
-    lines.extend(["  return false;", "}", "", "#endif", ""])
+    lines.extend(["  return false;", "}", ""])
+    for function, attribute in (("ModelEngineKind", "kind"), ("ModelProducerVersion", "producer_version"),
+                                ("ModelOutcomePolicy", "outcome_policy"), ("ModelExpiryPolicy", "expiry"),
+                                ("ModelEntryAdmissionPolicy", "entry_policy")):
+        lines.extend([f"string {function}(const string engine)", "{"])
+        for name, profile in PROFILES.items():
+            lines.append(f'  if(engine == "{name}") return "{getattr(profile, attribute)}";')
+        lines.extend(['  return "";', "}", ""])
+    lines.extend(["#endif", ""])
     return "\n".join(lines)
 
 

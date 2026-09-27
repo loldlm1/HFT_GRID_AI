@@ -7,7 +7,7 @@ from ..schema_contract import LEVELS
 
 
 def validate(run):
-    for key, value in {"expiry": "NONE", "reentry": "NONE", "ratios": "1,2,3,5", "virtual_cap": "2048"}.items():
+    for key, value in {"expiry": run.profile.expiry, "reentry": "NONE", "ratios": "1,2,3,5", "virtual_cap": "2048"}.items():
         require(run.manifest[key] == value, "Pivot manifest policy: " + key)
     run.none("SELECT 1 FROM signal_events s JOIN pivot_origins p USING(signal_id) GROUP BY s.macro_window_id,p.level_id HAVING COUNT(*)>1 LIMIT 1", "Repeated pivot consumption")
     run.none("SELECT 1 FROM signal_events s LEFT JOIN entry_attempts a USING(signal_id) GROUP BY s.signal_id HAVING COUNT(a.attempt_id)<>1 LIMIT 1", "Pivot origin/attempt cardinality")
@@ -57,3 +57,16 @@ def validate(run):
         for check in run.db.execute("SELECT * FROM execution_checks WHERE attempt_id=?", (attempt["attempt_id"],)):
             if check["send_succeeded"] == "1":
                 require(check["send_performed"] == "1" and check["allowed"] == "1" and check["send_retcode"] in {"10008", "10009"}, "Inconsistent Pivot request result")
+    if run.profile.expiry == "ENTRY_PLUS_MACRO":
+        macro_ms = integer(run.manifest["macro_seconds"]) * 1000
+        for trial in run.rows("trials.tsv"):
+            reference = trial["declared_time_msc"] if trial["role"] == "BROKER" else trial["entry_time_msc"]
+            if reference is not None and trial["eligibility"] in {"ACCEPTED", "ELIGIBLE"}:
+                require(integer(trial["deadline_time_msc"]) == integer(reference) + macro_ms, "Pivot reference deadline mismatch")
+        for outcome in run.rows("outcomes.tsv"):
+            if outcome["entry_time_msc"] is not None:
+                require(integer(outcome["deadline_time_msc"]) == integer(outcome["entry_time_msc"]) + macro_ms, "Pivot actual entry deadline mismatch")
+            if outcome["status"] == "TIME_EXIT":
+                require(integer(outcome["exit_time_msc"]) >= integer(outcome["deadline_time_msc"]), "Premature Pivot time exit")
+            if outcome["status"] in {"TP_FIRST", "SL_FIRST"}:
+                require(integer(outcome["exit_time_msc"]) < integer(outcome["deadline_time_msc"]), "Pivot deadline incorrectly labeled target")

@@ -18,6 +18,14 @@ Candle and Pivot readers retain their original identities.
 
 ## Public Inputs
 
+The active [entry-quality/lifecycle plan](../../mql5-entry-quality-lifecycle-plan.md)
+registers new engine identities before changing the producers. The
+[dataset contract](model-feature-dataset.md#registered-entry-quality-profiles)
+owns their admission formula and deadline precedence. Integration will move
+Candle to `CANDLE_PATTERN_ATR_V3` and Pivot to `PIVOT_MACRO_V2`, each at 2.10,
+with separate new broker ownership. Current 2.00 behavior remains until each
+complete engine switch is committed.
+
 | Group | Inputs and defaults |
 | --- | --- |
 | `+= Market Data Time =+` | `Broker_Session=FIXED_TIME_SESSIONS`, `Macro_Timeframe=PERIOD_H1`, `Micro_Timeframe=PERIOD_M3` |
