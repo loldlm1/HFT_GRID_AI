@@ -6,7 +6,7 @@ This index owns changing status; guides own procedures and dated evidence keeps
 its original results.
 
 The [entry-quality and lifecycle plan](../mql5-entry-quality-lifecycle-plan.md)
-is active at Sprint 3, following commits `47556f9` and `7a5607e`. Both EAs apply
+is active at Sprint 4, following commits `47556f9`, `7a5607e` and `eb816df`. Both EAs apply
 the entry-only spread gate and per-entry Macro expiry. Baselines and execution receipts live in
 ignored `.codex-artifacts/entry-quality-lifecycle/`. The user authorized all five
 sprints; backend implementation and live rollout remain excluded.
@@ -28,6 +28,18 @@ regression. The normal Pivot week has 28 broker time exits; the 100 ms case has
 43. A bounded research queue repairs the latter's quote/deal observation lag
 without changing any broker results. Final source/build and native receipts are
 under private `s3/`; representative generation and broader coverage remain S4.
+
+Sprint 4 passes all 48 native datasets, exact repeats/prefixes, H2/H4, both
+analysis-clock policies, seasonal/FX cases and independent feature audits. Both
+final year exports naturally seal and strictly validate over 31,438,575 ticks
+(`2015-08-11T00:00:01`..`2016-08-09T23:59:56` effective broker time). Native
+baseline/final seconds are Candle `51.531 / 25.855`, Pivot `71.754 / 32.846`;
+final local strict-reader times are `136.766 / 69.331` seconds. Changed admission
+and expiry reduce execution workload; these are not isolated algorithmic gains.
+Final broker/virtual peaks are 14/57 and 3/30, research handles 7, writer rows 256.
+No source optimization or second/third-year extension was justified. Source,
+binary and history hashes remain unchanged. Detailed receipts are in private
+`s4/assessment.json`; human new-behavior acceptance remains pending.
 
 All five prior runtime optimization sprints are committed through `8cfb9dc`.
 Start a new thread from this index, the

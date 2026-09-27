@@ -151,6 +151,16 @@ py -3.12 tools\mt5\compile_mt5.py `
 
 Record parsed compiler status and `.ex5` metadata, not the full log.
 
+On Wine, direct argument quoting can fail silently when the installation path
+contains spaces. The entry-quality work verified a fallback Windows command file
+containing the quoted MetaEditor executable and `/portable /avx2 /compile:"..."`
+and `/log:"..."`, launched with `wine cmd /c` from its directory. Inspect the
+finalized compiler log and fresh EX5 metadata; the launcher exit code alone is
+insufficient. Keep this task-specific file ignored. Refresh Expert Advisors in
+the terminal Navigator after CLI compilation before selecting the new tester
+binary. Hidden artifact directories are excluded from the tester program catalog;
+isolated comparisons use retained copies of the actual EAs under ignored `logs/`.
+
 ## Python Environment And Checks
 
 ### Shared Model Dataset Acceptance
@@ -186,6 +196,38 @@ Wine process lifetime HWM may include earlier jobs; distinguish it from sampled
 RSS for this case. One paired interval establishes neither a speed guarantee nor
 full-history memory stability. If MT5 advances an early start to the interval's
 end, record its zero-tick rejection and predeclare a later partial-warmup case.
+
+### Entry-Quality And Lifecycle Release Evidence
+
+The [current implementation plan](../../mql5-entry-quality-lifecycle-plan.md)
+selects the fixed entry-admission and per-entry expiry profiles. Its private
+receipts live under `.codex-artifacts/entry-quality-lifecycle/`. Use one warmup
+and three alternating baseline/final week and month pairs, then one continuous
+year per engine. A matching baseline must have the same compiler target, source
+history/specification and tester settings; old build-6184 receipts cannot replace
+the build-6230 baseline. Extend to at most three years only for a recorded coverage
+or growth concern. There is no ten-year or twenty-minute acceptance requirement.
+
+Pin source, EX5, configuration, input, symbol and source-history hashes before
+launch. Retain the exact native job identity, reports, first/last observed clocks,
+natural seal, strict file hashes and separate native-generation/strict-reader
+durations. Same-profile repeated exports normalize only the run ID; changed
+admission and expiry intentionally alter old/new cohorts and workload. Report
+that attribution instead of claiming a faster algorithm from fewer trades.
+
+Launch each job once. A native loop waits at most 45 seconds per call, samples
+resources and sends compact progress without returning control to the model on
+every interval. Use shorter native samples for brief representative runs. The
+case receipt declares at least 10 GiB free disk (or twice estimated new output),
+1.5 GiB available memory, a wall limit with at least five times measured headroom
+and a 300-second genuine-output stall guard. Stop only that exact owned job and
+preserve partial evidence. Tool-wait timeout is not tester failure. Save complete
+reports before another workload and keep reader work outside timed tester pairs.
+
+Source tests cover boundaries unavailable from the retained real feed; do not
+describe them as native fault injection. New trading behavior still requires
+human tester/chart acceptance. Prior Candle visual-polish deferral does not waive
+this review, and offline evidence does not authorize live rollout.
 
 ### Historical Candle Acceptance
 

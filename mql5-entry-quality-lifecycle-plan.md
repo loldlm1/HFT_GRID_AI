@@ -2,7 +2,7 @@
 
 **Generated:** 2026-09-27
 
-**Status:** Executing Sprint 3; S1/S2 committed as `47556f9` / `7a5607e`.
+**Status:** Executing Sprint 4; S1/S2/S3 committed as `47556f9` / `7a5607e` / `eb816df`.
 
 **Execution authorization:** The user explicitly authorized execution of all five sprints on 2026-09-27, including the specified checks and sprint commits. Backend implementation and live rollout remain excluded.
 
@@ -841,6 +841,7 @@ Completion checklist:
 
 ### Sprint 3
 
+- Committed as `eb816df`; final source/binary pins: `s3/source-pins.json`.
 - Rollback parent: `7a5607e`; its full MQL closure and both binaries were copied
   before edits to private `s3/rollback-parent/`. S2 rollback also has a fresh
   independently pinned build from exact S1 Git sources in `s2/rollback-parent/`
@@ -872,3 +873,64 @@ Completion checklist:
   harnesses; source review covers ownership, terminal-order checks, no entry gate
   on closes and failure retention. Full resource/performance and H2/H4/seasonal
   coverage remain S4. Human acceptance remains pending.
+
+### Sprint 4
+
+- Rollback parent: `eb816df`; exact MQL closure and both EX5s retained under
+  private `s4/rollback-parent/`. No production source change has been needed.
+  S3 source/binary pins, 94 shared tests, compile, export-on/off and focused
+  delayed-close evidence remain valid. Source/cap/include review is recorded in
+  `s4/source-review.json`; unchanged writer fault evidence is explicitly reused.
+- Thirty-two native warmup/repeated week/month exports strictly validate.
+  Twenty-four repeated TSV/broker comparisons and two matching-start feature
+  prefixes are exact. Median native seconds, baseline/final: Candle week
+  `0.908 / 0.513`, month `4.483 / 2.067`; Pivot week `1.383 / 0.596`, month
+  `5.683 / 2.440`. These are changed workloads, not proof of algorithmic gain.
+- Eight additional H2/H4, autumn/spring and EURUSD cases strictly validate and
+  pass independent feature audits. Fixed/Exness clock variants retain identical
+  causal fields and broker results. The comparison script initially omitted the
+  top-level analysis clock from its exclusion list; correcting that comparator
+  reused all eight passing strict receipts after verifying unchanged hashes.
+  No producer change or tester rerun was required.
+- Native waiting owns job progress and resource guards. Each case pins source,
+  EX5, settings, symbol specification and custom history before launch. Gold
+  history endpoints and the retained startup-day interpretation were checked;
+  FX history was available without downloads. The year batch declares a 2.31-GB
+  estimated output, 10-GiB free-disk / 1.5-GiB memory guards, 1,800-second wall
+  limit (over 19x measured projection), 300-second output-stall limit and native
+  five-second resource sampling. Strict reader work is excluded from timed runs.
+- All four year datasets and four matched late-week datasets naturally seal and
+  strictly validate. Both final years pass independent native-feature audits.
+  Each year contains 31,438,575 ticks, with effective quote coverage
+  `2015-08-11T00:00:01` through `2016-08-09T23:59:56` in raw broker time; the
+  requested first day supplies startup history. Native/reader seconds:
+
+  | Engine/profile | Native generation | Strict reader | Rows | Broker entries |
+  | --- | ---: | ---: | ---: | ---: |
+  | Candle baseline V2 | 51.531 | 215.697 | 1,239,985 | 62,899 |
+  | Candle final V3 | 25.855 | 136.766 | 660,026 | 3,897 |
+  | Pivot baseline V1 | 71.754 | 56.375 | 336,636 | 10,796 |
+  | Pivot final V2 | 32.846 | 69.331 | 422,089 | 4,863 |
+
+- Final year exports total 440,457,479 Candle / 227,035,486 Pivot bytes. Candle
+  has 104 real / 999 virtual time exits; Pivot has 1,543 real / 9,479 virtual time
+  exits. Candle captures fall with fewer confirmed-SL re-entries; Pivot retains
+  all 12,093 discoveries. Required rejection/audit rows explain Pivot's larger
+  export and 23% higher reader total: rows rose 25%, with similar per-row cost.
+  No unexplained generation regression or speculative optimization is claimed.
+- Final year broker/virtual peaks are Candle 14/57 and Pivot 3/30; research
+  handles peak at 7, writer rows at 256. Sampled tester RSS peaks are 806.4/819.5
+  MiB, versus baseline 953.7/831.9 MiB. Descriptors return to 22; native tick/
+  history/trade caches contribute to RSS growth and lifetime HWM includes prior
+  jobs. Initial header-only sampler values are excluded from progress clocks.
+  These process measurements are not exclusive EA allocation measurements.
+- The late-week pairs remain lower at Candle `0.899 / 0.571` and Pivot
+  `1.148 / 0.539` seconds. Fixed active-state bounds, natural completion, resource
+  recovery and matched late coverage leave no concrete concern that an automatic
+  second/third year would resolve. One year suffices for this gate; no ten-year
+  performance or universal leak-freedom claim is made. Native forced refusal,
+  missing quote/specification and exact equality remain the S3 stated limits.
+- `s4/assessment.json`, `benchmark-validation.json`, `boundary-validation.json`,
+  `late-validation.json`, `year-validation.json` and per-case hashes hold the
+  complete evidence. All 48 native acceptance datasets pass. Source, EX5 and
+  source-history hashes remain unchanged; no recompile or unit rerun is needed.
