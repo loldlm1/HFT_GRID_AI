@@ -56,14 +56,25 @@ The user's 2026-09-27 [backend dataset selection](research/entry-quality-lifecyc
 names only `CANDLE_PATTERNS_XAUUSD_4Y_V2` and `PIVOT_XAUUSD_4Y_V2`.
 Both declare the new 2.10 profiles, gold H1/M3 and effective raw coverage
 2015-08-11 through 2019-08-09. Candle passes full local strict validation across
-all eleven files with an OK/NATURAL seal and unchanged source hashes. Pivot is
-FAILED/CENSORED with
-`RUN_END_CLOSE_OBSERVATION_UNAVAILABLE` and is refused by the strict reader:
-it is a diagnostic/refusal source, not accepted research data. Pivot acceptance
-requires a fresh successful export and an explicit replacement in the selection.
+all eleven files with an OK/NATURAL seal and unchanged source hashes. The original
+Pivot export failed with `RUN_END_CLOSE_OBSERVATION_UNAVAILABLE`; the user removed
+it and explicitly authorized regeneration under the same exact name. A targeted
+finalization correction censors the research leg of a tester-forced close after
+the last quote. The short reproduction now passes, all 95 shared tests pass,
+Pivot compiles without warnings, and normal/delayed exports and broker results
+remain exact. The recreated four-year export passes full strict validation with
+an OK/NATURAL seal: ten files, 461,232 trials/matching outcomes and 49,829
+signals/matching origins. Generation took 136.293 seconds over 89,116,277 ticks;
+strict intake took 303.107 seconds. All 250,400 native broker journal rows match
+the original execution exactly (31,300 entries). Twelve final outcomes are
+properly censored, including the one broker leg, without fabricated returns or
+labels. Candle's accepted dataset hashes remain unchanged. Both selected sources
+are accepted locally for backend validation; the reused Pivot ID has new file
+hashes and cannot reuse the failed source's intake evidence. Receipts are in
+private `pivot-four-year-rerun-20260927/` under the entry-quality evidence root.
 Earlier run IDs and the original S5 bundle remain historical regression evidence.
 Read-only receipts are in private `handoff-selection-20260927/` under the
-entry-quality evidence root; neither source nor backend code is changed.
+entry-quality evidence root; backend code is unchanged.
 
 The requested XAUUSD/EURUSD closeout audit passes for both engines, using the
 unchanged S4 native week datasets and exact source/EX5/TSV hashes. It independently

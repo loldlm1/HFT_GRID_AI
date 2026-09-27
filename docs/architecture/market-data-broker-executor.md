@@ -158,8 +158,14 @@ New entry state, close ownership and research delivery remain independent.
 A delayed close can precede the next observed quote. A research-only queue holds
 up to 2048 immutable closed records until that quote reaches the deal clock;
 execution releases the confirmed closed position immediately. The queue performs
-no orders. An unavailable observation at run end fails research explicitly.
-It never backdates observation or changes actual close/duration facts.
+no orders. At natural tester completion, a close beyond the final observed quote
+is outside the research horizon. Finalization writes CENSORED_RUN_END from a
+research copy, retains the confirmed entry, and leaves close/duration/returns and
+binary labels null. Existing lane finalization resolves any outstanding parity
+once. Native broker reports retain the actual tester-forced close. This bounded
+finalization never advances the quote clock, fabricates a price, or changes
+reconciled execution. An unavailable observation on abnormal completion, invalid
+queued facts, or failed censor persistence still fails research explicitly.
 
 Capture and freshly recheck point/trade tick, spread, volume min/max/step,
 requested and downward-normalized volume, free margin, profit/margin calculation

@@ -228,7 +228,12 @@ void FinalizePivotRunExport()
   g_pivot_run_finalized = true;
   ReconcileAndFinalizePivotSignals();
   if(ModelReady() && ArraySize(g_pivot_deferred_closes) > 0)
-    PivotDatasetFail("RUN_END_CLOSE_OBSERVATION_UNAVAILABLE");
+  {
+    if(!g_tester_interval_completed)
+      PivotDatasetFail("RUN_END_CLOSE_OBSERVATION_UNAVAILABLE");
+    else if(!CensorPivotDeferredClosesForRunEnd())
+      PivotDatasetFail("RUN_END_DEFERRED_CLOSE_CENSOR_FAILED");
+  }
   PivotDatasetCaptureResearchFailure();
   if(!g_model_failed)
     FinalizePivotSignalAttemptsForExport();

@@ -19,7 +19,7 @@ Retain synthetic acceptance/refusal examples for regression checks.
 | Selected run ID | Declared engine / producer | Validation and permitted use |
 | --- | --- | --- |
 | `CANDLE_PATTERNS_XAUUSD_4Y_V2` | `CANDLE_PATTERN_ATR_V3` / `2.10` | **Local strict validation PASS:** all eleven files, row/clock/reference/semantic checks and unchanged source hashes; `OK/NATURAL/NONE` seal. Accepted input for backend validation; backend READY checks still apply. |
-| `PIVOT_XAUUSD_4Y_V2` | `PIVOT_MACRO_V2` / `2.10` | **Blocked:** `FAILED/CENSORED`, `RUN_END_CLOSE_OBSERVATION_UNAVAILABLE`. Retain for diagnosis and intake-refusal verification only; never publish READY or include in research statistics. |
+| `PIVOT_XAUUSD_4Y_V2` | `PIVOT_MACRO_V2` / `2.10` | **Recreated source: local strict validation PASS:** all ten files, row/clock/reference/semantic checks and unchanged source hashes; `OK/NATURAL/NONE` seal. Accepted input for backend validation; the earlier failed incarnation remains rejected. |
 
 Both directories are under
 `Common/Files/MQL5ModelDatasetV1/runs/`. The current Linux root is
@@ -40,16 +40,27 @@ Candle reports partial startup warmup (1,372 prior closed M1 bars) and
 flags; successful structural validation does not mean every feature is available
 for every signal. Its summary declares 897,360 trials and matching outcomes.
 
-Pivot's `FAILED.txt` repeats the summary failure. The current strict reader
-refuses the extra failure marker with `Unexpected/missing run files`; its seal
-also independently violates natural-success requirements. The summary declares
-461,232 trials but only 461,220 outcomes. Removing the marker would not make this
-a valid dataset. The producer emits this failure when deferred broker-close
-facts remain ahead of the last observed quote at finalization; it cannot invent
-a later observation. A successful fresh Pivot export with a new run ID and full
-strict validation is required before Pivot acceptance. Preserve this failed
-original and explicitly update this selection when a replacement is available.
-No replacement run is implicitly selected or authorized for generation here.
+The original Pivot incarnation was rejected on 2026-09-27: `FAILED/CENSORED`,
+`RUN_END_CLOSE_OBSERVATION_UNAVAILABLE`, with 461,232 declared trials but only
+461,220 declared outcomes. Its `FAILED.txt` caused the strict reader's immediate
+`Unexpected/missing run files` refusal; the seal also independently failed.
+The user then removed that dataset and explicitly requested regeneration under
+the **same exact run ID**, superseding the usual fresh-ID recommendation for this
+replacement. Original hash/refusal receipts, native journal facts and copied
+diagnostics remain retained outside the source directory.
+
+The native journal identifies the cause: MT5 force-closed one position at
+`2019-08-09T23:59:58`, after the final quote at `20:57:59.621`. The correction
+keeps the original tester interval, settings, entry rules and quote horizon.
+Natural completion now exports the affected research leg as CENSORED_RUN_END
+with its confirmed entry but no close, duration, return or binary target. Parity
+and virtual lanes use existing run-end finalization. Native reports retain the
+actual forced close. Abnormal completion and invalid/persistence failures still
+fail closed. The engine/producer/outcome tuple and schema remain unchanged.
+
+Treat the recreated directory as a new source identity bound to its full file
+hashes, despite the reused run ID. Discard failed-source checkpoint assumptions;
+never merge old/new files or reuse READY evidence based on the name alone.
 
 The four-year sources cover this gold/H1/M3 configuration. They cannot alone
 validate EURUSD point handling, other Macro durations or every boundary/failure
@@ -65,8 +76,25 @@ Selection receipts live in ignored
 per-file hashes (receipt SHA-256
 `4548d8573cec740569ee49a276601a7af3afd1ecbf7af92b954f36cf04f0898d`).
 The full local Candle check took 671.950 seconds; this is a validation measurement,
-not dataset generation or backend intake performance. Pivot's strict refusal
-is recorded in its `-strict.log`; no passing Pivot receipt exists.
+not dataset generation or backend intake performance. The original Pivot refusal
+is recorded in its `-strict.log`; it cannot certify the recreated source.
+The rerun's build, original settings, history hashes, short-case comparisons and
+new generation/validation receipts live in the adjacent private directory
+`pivot-four-year-rerun-20260927/`.
+Its `four-year-strict.json` SHA-256 is
+`71326b369ac3cfe0dd3f035f88a10d810db648062c0d55af1e36afd7eea47bc6`;
+`four-year-validation.json` records full acceptance, 461,232 trials/matching
+outcomes and 49,829 signals/matching origins. Generation took 136.293 seconds
+over 89,116,277 ticks; local strict validation took 303.107 seconds. The original
+manifest, interval and settings are unchanged. All 250,400 ordered native
+Trade/Trades journal rows match the original run exactly, covering 31,300 broker
+entries; export-on/off short-case broker reports also match. At the final quote,
+one broker leg, one parity leg and ten virtual legs are CENSORED_RUN_END with
+null close/duration/returns/labels. Candle's accepted file hashes are unchanged.
+Normal H1 and delayed M6 regression exports match their retained acceptance
+hashes after normalizing only run ID; independent feature audits pass. All 95
+shared Python tests, include tracing, generated-header and documentation checks
+pass. The correction adds no per-tick work or new resource allocation policy.
 The original S5 archive and its dated pins remain unchanged; its native year
 receipts do not certify these subsequently generated four-year sources.
 
@@ -274,11 +302,19 @@ This section retains implementation and regression evidence. For the current
 backend source selection and acceptance status, use
 [Selected Backend Datasets](#selected-backend-datasets) above.
 
-Final MQL source commit: `eb816df65bee051e8ae906cc90d89b7eb6ee386f`.
+Original S3/S4 MQL source commit: `eb816df65bee051e8ae906cc90d89b7eb6ee386f`.
 S4 evidence commit: `afda9d45cec92c38c9664c689267feffe65c259a`.
 MetaEditor 6230 AVX2/FMA3 compiled both EAs with zero errors and zero warnings.
 S5 adds consumer JSON proof/duration metadata; generated MQL and both EX5s remain
 byte-identical to the accepted S3/S4 builds.
+
+The subsequent Pivot finalization correction compiles on the same MetaEditor
+6230 AVX2/FMA3 target with zero errors/warnings. Current `Pivot_Macro.ex5`:
+275,762 bytes, SHA-256
+`1daec0fd429af26b33594de4c1e4f77915da65641ac7d413ecf65e51e99f10f4`.
+Candle source/binary and the consumer descriptor remain unchanged. The table
+below retains the original S3/S4 pins; the rerun's `build/build.json` and job
+receipts own the corrected Pivot pin.
 
 | Binary | Bytes | SHA-256 |
 | --- | ---: | --- |

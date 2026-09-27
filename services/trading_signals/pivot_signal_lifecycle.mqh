@@ -166,6 +166,35 @@ void FlushPivotDeferredCloses()
   }
 }
 
+bool CensorPivotDeferredClosesForRunEnd()
+{
+  if(!ModelReady() || g_model_last_time <= 0) return false;
+  for(int i = 0; i < ArraySize(g_pivot_deferred_closes); i++)
+  {
+    // The tester can force-close after the final quote. Research ends at that
+    // quote; censor a copy without changing the reconciled broker facts.
+    PivotSignal observed(g_pivot_deferred_closes[i]);
+    if(!observed.execution.broker_entry_confirmed ||
+       observed.execution.broker_entry_time_msc <= 0 ||
+       observed.execution.broker_entry_time_msc > g_model_last_time ||
+       !observed.execution.broker_close_confirmed ||
+       observed.execution.close_time_msc <= g_model_last_time ||
+       observed.execution.outcome_exported)
+      return false;
+    observed.execution.broker_close_confirmed = false;
+    observed.execution.binary_eligible = false;
+    observed.execution.binary_target = -1;
+    observed.execution.terminal_reason = "CENSORED_RUN_END";
+    observed.execution.exclusion_reason = "CENSORED_RUN_END";
+    observed.attempt_status = "CENSORED";
+    if(!PivotDatasetRecordBrokerOutcome(observed, true) || !UpdatePivotOrigin(observed))
+      return false;
+  }
+  // Existing run-end lane finalization resolves any outstanding parity once.
+  ArrayFree(g_pivot_deferred_closes);
+  return true;
+}
+
 void FinalizePivotSignalTerminalStates()
 {
   for(int i = ArraySize(g_pivot_signals) - 1; i >= 0; i--)

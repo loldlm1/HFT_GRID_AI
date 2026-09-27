@@ -189,6 +189,13 @@ writable and stop only the owned tester. The diagnostic survives research cleanu
 Live broker state stays owned by the engine. A changed instrument specification
 invalidates research and requires a new run without becoming an order predicate.
 
+On natural Pivot tester completion, a broker close after the last observed quote
+does not extend market coverage. Export the research leg as CENSORED_RUN_END at
+that last quote, retaining its confirmed entry and exact parity identity without
+a close clock, duration, realized return or binary target. Outstanding parity and
+virtual lanes use their existing run-end censor behavior. The native tester report
+retains any later forced close; no synthetic observation or quote is introduced.
+
 `gross_r` consistently measures signed price movement divided by actual-entry
 price risk. Legacy Pivot monetary R remains reproducible from retained raw facts:
 `gross_profit / abs(trials.virtual_expected_stop_loss)` for virtual/parity rows,
