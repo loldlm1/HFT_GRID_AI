@@ -677,6 +677,11 @@ SUMMARY_KEYS += tuple(name for clock in SUMMARY_CLOCKS for name in clock_compani
 
 
 def contract() -> dict:
+    periods = [60 * n for n in (1, 2, 3, 4, 5, 6, 10, 12, 15, 20, 30, 60, 120, 180, 240, 360, 480, 720, 1440, 10080)]
+    entry_proof = {
+        "table": "trials.tsv", "when": "ADMITTED_OR_COMPUTED_DISTANCE_REJECTION",
+        "fields": "entry_bid entry_ask point_size trade_tick_size spread_points stops_level_points freeze_level_points normalized_risk_distance_price normalized_risk_distance_points minimum_risk_distance_points distance_eligible".split(),
+    }
     return {
         "dataset_family": FAMILY, "schema_version": SCHEMA_VERSION, "feature_set": FEATURE_SET,
         "manifest_keys": MANIFEST_KEYS, "fixed_manifest": dict(FIXED_MANIFEST), "summary_keys": SUMMARY_KEYS,
@@ -684,6 +689,9 @@ def contract() -> dict:
                              "kind": p.kind, "producer_version": p.producer_version,
                              "entry_admission_policy": p.entry_policy, "expiry": p.expiry,
                              "entry_admission": {"spread_multiplier": 3, "broker_distance": "MAX_STOPS_FREEZE", "tick_buffer": 1, "tolerance_ticks": "0.000001"} if p.entry_policy != "LEGACY" else None,
+                             "required_entry_proof": entry_proof if p.entry_policy != "LEGACY" else None,
+                             "timeframes": {"macro_seconds": periods + ([2592000] if name == "PIVOT_MACRO_V2" else []),
+                                            "micro_seconds": periods, "ordering": "MICRO_LT_MACRO"},
                              "files": [t.name for t in p.tables]} for name, p in PROFILES.items()},
         "tables": {t.name: {"key": t.key, "fields": [asdict(f) for f in t.fields]} for t in TABLES},
     }

@@ -62,6 +62,22 @@ intentional refusal examples, source/EX5/run pins and checksums. No private nati
 dataset is a tracked fixture. A failed example remains failed; never repair a
 source in place to make validation pass.
 
+The completed older handoff remains historical. The
+[entry-quality/lifecycle supplement](../../docs/research/entry-quality-lifecycle-backend-handoff.md)
+delivers the 2.10 profiles and backend daily offset/limit requirements. Its private
+`.codex-artifacts/entry-quality-lifecycle/s5/` bundle contains the current JSON
+descriptor, seven valid/four refusal examples, final native receipts and SHA-256
+pins. Profiles declare fixed coefficients, conditional required trial proof and
+supported durations; generic nullable columns alone do not establish admission.
+Generate a matching descriptor without changing MQL source:
+
+```bash
+.venv/bin/python -m tools.model_dataset.schema_contract --write-json .codex-artifacts/entry-quality-lifecycle/s5/consumer-contract.json
+```
+
+Do not transfer `ModelRun`'s temporary SQLite implementation into backend runtime.
+The backend retains its own typed bounded PostgreSQL intake and full READY checks.
+
 Historical Pivot V14 and Candle 1/2/3 sources continue to use their existing local
 readers. This package cannot read those older datasets under new semantics.
 Django intake and chart/full-history/broker-feed acceptance remain separate.

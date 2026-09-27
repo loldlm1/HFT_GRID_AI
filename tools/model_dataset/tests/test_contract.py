@@ -55,6 +55,23 @@ class ContractTests(RunFixtureCase):
             self.assertEqual(len(table.columns), len(set(table.columns)))
         self.assertEqual(next(f for f in TABLES[5].fields if f.name == "role").choices, ("BROKER", "VIRTUAL", "PARITY"))
 
+    def test_consumer_profile_declares_conditional_proof_and_native_durations(self):
+        descriptor = contract()
+        profiles = descriptor['profiles']
+        for engine in ('PIVOT_MACRO_V2', 'CANDLE_PATTERN_ATR_V3'):
+            proof = profiles[engine]['required_entry_proof']
+            fields = {f['name'] for f in descriptor['tables'][proof['table']]['fields']}
+            self.assertEqual(proof['when'], 'ADMITTED_OR_COMPUTED_DISTANCE_REJECTION')
+            self.assertLessEqual(set(proof['fields']), fields)
+            self.assertIn('minimum_risk_distance_points', proof['fields'])
+            self.assertIn('distance_eligible', proof['fields'])
+            self.assertIn(7200, profiles[engine]['timeframes']['macro_seconds'])
+            self.assertEqual(profiles[engine]['timeframes']['ordering'], 'MICRO_LT_MACRO')
+        self.assertIn(2592000, profiles['PIVOT_MACRO_V2']['timeframes']['macro_seconds'])
+        self.assertNotIn(2592000, profiles['CANDLE_PATTERN_ATR_V3']['timeframes']['macro_seconds'])
+        self.assertIsNone(profiles['PIVOT_MACRO_V1']['required_entry_proof'])
+        self.assertIsNone(profiles['CANDLE_PATTERN_ATR_V2']['required_entry_proof'])
+
     def test_generated_field_ids_preserve_table_and_raw_column(self):
         header = mql_header()
         stride = int(re.search(r"MODEL_FIELD_STRIDE = (\d+);", header)[1])

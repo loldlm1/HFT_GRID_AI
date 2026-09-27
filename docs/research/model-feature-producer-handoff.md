@@ -1,5 +1,10 @@
 # Shared Model Feature Producer Handoff
 
+This completed handoff retains its original 2.00 profiles and dated evidence.
+The [2.10 entry-quality/lifecycle supplement](entry-quality-lifecycle-backend-handoff.md)
+delivers new profiles and the backend offset/limit contract independently; it
+does not reopen this delivery or replace its retained operational follow-ups.
+
 This handoff defines what a later backend plan can consume from the MQL5
 producers. The [canonical contract](../architecture/model-feature-dataset.md)
 owns exact fields and behavior; the [project index](../README.md) owns current

@@ -5,6 +5,8 @@ This is the versioned producer contract for the
 The [project index](../README.md) owns implementation and acceptance status.
 The [producer handoff](../research/model-feature-producer-handoff.md) locates
 release pins, examples and the later backend planning boundary.
+The [entry-quality supplement](../research/entry-quality-lifecycle-backend-handoff.md)
+delivers the 2.10 profile pins, conditional proof and downstream selection rules.
 Separate Pivot and Candle EAs retain their trading rules and publish immutable
 facts through shared data services. Feature availability never controls orders.
 

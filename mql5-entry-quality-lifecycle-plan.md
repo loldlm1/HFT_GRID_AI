@@ -2,7 +2,7 @@
 
 **Generated:** 2026-09-27
 
-**Status:** Executing Sprint 4; S1/S2/S3 committed as `47556f9` / `7a5607e` / `eb816df`.
+**Status:** All five implementation sprints delivered. S1–S4: `47556f9` / `7a5607e` / `eb816df` / `afda9d4`; the execution journal records the S5 commit. Automated delivery is complete; human new-behavior acceptance remains pending under Q06 below.
 
 **Execution authorization:** The user explicitly authorized execution of all five sprints on 2026-09-27, including the specified checks and sprint commits. Backend implementation and live rollout remain excluded.
 
@@ -770,17 +770,17 @@ the user's subsequent all-sprint execution authorization.
 
 Completion checklist:
 
-- [ ] All five sprints passed their required automated gates and have one commit each.
-- [ ] Both EAs compile with zero errors/warnings and matching source/EX5 receipts.
-- [ ] New admission/expiry behavior, old-profile reads and export-on/off equivalence pass.
-- [ ] Both final representative one-year datasets naturally seal and validate strictly.
-- [ ] Any extension up to three years has a recorded reason; evidence limits are stated.
-- [ ] Native background work used durable job identity and no model-driven polling loop.
-- [ ] Incremental backend handoff and examples are complete; no backend execution is claimed.
+- [x] All five sprints passed their required automated gates and have one commit each.
+- [x] Both EAs compile with zero errors/warnings and matching source/EX5 receipts.
+- [x] New admission/expiry behavior, old-profile reads and export-on/off equivalence pass.
+- [x] Both final representative one-year datasets naturally seal and validate strictly.
+- [x] Any extension up to three years has a recorded reason; evidence limits are stated.
+- [x] Native background work used durable job identity and no model-driven polling loop.
+- [x] Incremental backend handoff and examples are complete; no backend execution is claimed.
 - [ ] Human acceptance of new behavior passes, or an explicit user deferral is recorded
       with acceptance still pending. Other operational gates retain their prior scope;
       no live/deployment acceptance is implied by offline completion.
-- [ ] Current status, version owners, links, ignored evidence and rollback pins are accurate.
+- [x] Current status, version owners, links, ignored evidence and rollback pins are accurate.
 
 ## 9. Execution Evidence
 
@@ -876,6 +876,7 @@ Completion checklist:
 
 ### Sprint 4
 
+- Committed as `afda9d4`.
 - Rollback parent: `eb816df`; exact MQL closure and both EX5s retained under
   private `s4/rollback-parent/`. No production source change has been needed.
   S3 source/binary pins, 94 shared tests, compile, export-on/off and focused
@@ -934,3 +935,45 @@ Completion checklist:
   `late-validation.json`, `year-validation.json` and per-case hashes hold the
   complete evidence. All 48 native acceptance datasets pass. Source, EX5 and
   source-history hashes remain unchanged; no recompile or unit rerun is needed.
+
+### Sprint 5
+
+- Rollback parent: `afda9d4`. The new incremental handoff is
+  `docs/research/entry-quality-lifecycle-backend-handoff.md`; earlier producer
+  handoff content is retained, with navigation only. Existing dataset/tool/runbook
+  owners link the delivery; the current index owns pending acceptance.
+- Added machine-readable conditional proof fields and supported durations to the
+  consumer JSON descriptor, completing its downstream policy declaration. This
+  changes no emitted MQL, TSV header, parser semantics or binary. The additional
+  descriptor contract case and all existing cases pass: 95 tests in 14.687 s.
+- Private `s5/handoff.zip`, `consumer-contract.json`, `release-pins.json`, native
+  year receipts and `SHA256SUMS` bind source, binary and data evidence. Existing
+  fixture helpers produce seven valid and four expected refusal examples. The
+  first packaging check expected different wording for the correct missing-proof
+  refusal; its assertion was corrected without rewriting the example source.
+- Backend HEAD `ba435d85c4872c8d78511fbea9dab0682f1a7042` and then-current owners
+  were re-read without writes or service activity. Concurrent intake/progress
+  edits were observed and preserved. The handoff identifies exact old-profile
+  dispatch and capped-parent subset assumptions, with required versioned changes
+  and acceptance examples; no backend implementation or deployed compatibility
+  is claimed.
+- Human review remains pending under AGENTS and task 5.3. Concrete M6 delayed
+  Pivot, M6 Candle and H4 seasonal reports/settings are delivered. Prior Candle
+  visual-polish deferral does not satisfy this separate acceptance. No live
+  account operations occurred. The final journal will record the S5 commit and
+  pending required acceptance question before yielding.
+- Final document links/anchors, instruction budgets, ignored artifact paths,
+  complete archive checksums and exact MQL/EX5/consumer hashes pass. No tester
+  workload remains active. The final commit gate records its SHA and parent in
+  the ignored journal; no history amendment is required.
+
+### Pending Required Acceptance Q06
+
+AGENTS requires: "New behavior needs human tester/chart acceptance." Task 5.3
+retains this gate independently of the older Candle visual-polish deferral.
+All authorized automated implementation, validation, examples and handoff work
+is complete. The user must confirm reviewed acceptance, explicitly defer this
+human gate while keeping acceptance pending, or leave the delivery awaiting
+review. Silence and execution authorization do not answer Q06. No live rollout
+is included in any of these choices. The linked handoff supplies exact cases,
+reports, settings, source and binary pins for that decision.

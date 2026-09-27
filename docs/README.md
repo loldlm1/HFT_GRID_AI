@@ -6,7 +6,9 @@ This index owns changing status; guides own procedures and dated evidence keeps
 its original results.
 
 The [entry-quality and lifecycle plan](../mql5-entry-quality-lifecycle-plan.md)
-is active at Sprint 4, following commits `47556f9`, `7a5607e` and `eb816df`. Both EAs apply
+has delivered all five implementation sprints; human acceptance remains pending.
+Sprints 1–4 are `47556f9`, `7a5607e`, `eb816df`, `afda9d4`; the execution journal
+records the final handoff commit. Both EAs apply
 the entry-only spread gate and per-entry Macro expiry. Baselines and execution receipts live in
 ignored `.codex-artifacts/entry-quality-lifecycle/`. The user authorized all five
 sprints; backend implementation and live rollout remain excluded.
@@ -40,6 +42,15 @@ Final broker/virtual peaks are 14/57 and 3/30, research handles 7, writer rows 2
 No source optimization or second/third-year extension was justified. Source,
 binary and history hashes remain unchanged. Detailed receipts are in private
 `s4/assessment.json`; human new-behavior acceptance remains pending.
+
+The [incremental backend handoff](research/entry-quality-lifecycle-backend-handoff.md)
+provides the exact 2.10 profiles, field/clock semantics, source/EX5 pins, immutable
+examples and daily node-specific Trades_Offset/Trades_Limits contract. Seven valid
+and four rejection examples pass; all 95 shared tests pass. JSON metadata now
+declares conditional proof and supported durations; generated MQL and final EX5
+hashes are unchanged. The old handoff remains complete. Backend work was read-only;
+its ongoing optimization is preserved. No tester job remains active. Concrete
+human review cases are linked in the handoff; no live rollout is authorized.
 
 All five prior runtime optimization sprints are committed through `8cfb9dc`.
 Start a new thread from this index, the
