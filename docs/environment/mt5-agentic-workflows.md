@@ -53,6 +53,9 @@ Use one writer per worktree. Planner execution state belongs in ignored
 `.codex-hook-state/`; detailed receipts belong in ignored `.codex-artifacts/`.
 Retain accepted operator handoffs and original/derived evidence. Do not clean
 shared terminal folders, global session/authentication state or plugin caches.
+At closeout, archive completed state and its compaction checkpoints outside active
+hook discovery with exact copies and a receipt. Clear only those retired local
+state files; archived plans must not resume automatically.
 
 Use the retained plugin's `references/project-mcp-routing.md` for shared routes.
 Preserve server IDs `metaeditor` and `metatrader5`, endpoints, credential references,
@@ -155,7 +158,7 @@ Record parsed compiler status and `.ex5` metadata, not the full log.
 Both current EAs use the [common schema and reader](../../tools/model_dataset/README.md).
 Compile both whenever shared includes change; retain source-closure and EX5 pins.
 Retain the [framework native matrix](../plans/archive/mql5-model-feature-framework-plan.md#11-sprint-5-cross-engine-native-acceptance)
-and apply the [runtime plan's exact/performance gates](../../mql5-model-runtime-optimization-plan.md#5-measurement-and-validation-gates)
+and apply the [archived runtime plan's exact/performance gates](../plans/archive/mql5-model-runtime-optimization-plan.md#5-measurement-and-validation-gates)
 with fresh IDs under `Common/Files/MQL5ModelDatasetV1/runs/`. Save each job's
 JSON and XML/XLSX report before starting another job; historical reports may no
 longer be retrievable. Reused-ID initialization refusal has no tester report:
@@ -330,9 +333,10 @@ tracked source; never start a duplicate job after a waiting timeout.
 
 ### Model Runtime Benchmarks
 
-The [runtime plan](../../mql5-model-runtime-optimization-plan.md) owns the current
-performance gates. Its private `s1/baseline.json` pins case settings, release
-timings, warmup exclusion and resource guards; `s1/profile-summary.json` separates
+The [performance contract](../architecture/market-data-broker-executor.md#performance-contract)
+owns standing engine requirements. The [archived runtime plan](../plans/archive/mql5-model-runtime-optimization-plan.md)
+records the accepted measurement gates. Its private `s1/baseline.json` pins case
+settings, release timings, warmup exclusion and resource guards; `s1/profile-summary.json` separates
 bounded instrumented timings from release results. Never infer generated ticks
 from Tick/Timer/transaction callback counts. Compare all non-job native report
 statistics and ordered orders/deals, alongside exact common-schema TSVs.

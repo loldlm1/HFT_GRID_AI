@@ -1,5 +1,12 @@
 # Plan: MQL5 Model Runtime Optimization
 
+> Archived 2026-09-27 after five completed sprints at `8cfb9dc`.
+> This is a historical execution record. D10 leaves corrected full-history
+> generation/acceptance to the operator. Start from the
+> [current index](../../README.md) and [producer handoff](../../research/model-feature-producer-handoff.md).
+> Original bytes: `8cfb9dc:mql5-model-runtime-optimization-plan.md`.
+> Paths and commands below retain their repository-root context; do not restart this plan.
+
 - **Generated:** 2026-09-24
 - **Status:** Completed - five sprints, including the D11 readiness fix.
   Corrected full-history generation/acceptance remains manual under D10.
@@ -7,7 +14,7 @@
   including the planned validation and commit gates, on 2026-09-24. Earlier
   authorization to stop the current Candle tester if needed remains applicable.
 - **Proposal:** Not requested; this is the follow-up to the completed
-  [feature framework plan](docs/plans/archive/mql5-model-feature-framework-plan.md).
+  [feature framework plan](mql5-model-feature-framework-plan.md).
 - **Complexity:** High
 - **Planning baseline:** `2292be7517201a41b8dde8b78e503f413c15eb31`, branch
   `bot/pivot_points_fractal`; clean tracked worktree at discovery.

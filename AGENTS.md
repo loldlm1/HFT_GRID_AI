@@ -1,6 +1,6 @@
 # HFT Grid AI - Project Instructions
 
-Current [execution plan](mql5-model-runtime-optimization-plan.md).
+Read the [project index](docs/README.md) first.
 Retain trading rules; Candle visual review is deferred.
 
 ## Start Here

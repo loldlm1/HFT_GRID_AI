@@ -1,11 +1,18 @@
 # Proposal: Candle Pattern Discovery
 
+> Archived 2026-09-27. This accepted brief records the earlier Candle dataset,
+> followed by the completed shared-feature refactor. Use the
+> [shared contract](../../architecture/model-feature-dataset.md) and
+> [producer handoff](../../research/model-feature-producer-handoff.md) for current features.
+> Original bytes: `8cfb9dc:candle-pattern-discovery-proposal.md`.
+> The design below is historical and does not authorize further execution.
+
 Prepared 2026-09-22 from the discussion and MT5 baseline
 `2bc95d39d9e6ef2954bc3ffebef145dbc9d81d53`.
 
 **Stage:** Accepted design brief. Subsequent answers and execution authorization
-are recorded in the [archived execution record](docs/plans/archive/candle-pattern-discovery-plan.md).
-The [project index](docs/README.md) owns current V14 delivery and validation status.
+are recorded in the [archived execution record](candle-pattern-discovery-plan.md).
+The [project index](../../README.md) owns current delivery and validation status.
 
 ## Problem And Outcome
 
@@ -34,7 +41,7 @@ realignment differ from the proposed discovery lifecycle.
 - Include the producer contract and downstream research behavior in the design.
   Live rollout, consumer deployment, and runtime model decisions are excluded.
   Existing Pivot-specific execution rules
-  remain governed by the [V14 runtime contract](docs/architecture/market-data-broker-executor.md).
+  remain governed by the [runtime contract](../../architecture/market-data-broker-executor.md).
 
 ## Recommended Approach
 
@@ -170,7 +177,7 @@ sharing strategy state or importing the experimental EA's complete order path.
 Keep event, direction branch, entry attempt, feature snapshot, ratio trial,
 broker evidence, and outcome identities explicit. Preserve the root event and
 pattern family through every relationship. The current
-[offline tools](tools/deterministic_signal_ml/README.md) accept V14 only;
+[offline tools](../../../tools/deterministic_signal_ml/README.md) accept V14 only;
 Candle needs a distinct intake/feature contract, with family separation enforced
 in downstream research. This proposal defines no new TSV count or migration.
 

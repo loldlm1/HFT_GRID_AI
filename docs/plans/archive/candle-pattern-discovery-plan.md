@@ -10,7 +10,7 @@ Recorded 2026-09-22 from the accepted chat plan and the user's instruction to
 execute the whole plan. Complexity: high. This is the execution record of that
 plan, grouped into four commit checkpoints; it does not expand its scope.
 
-The [proposal](../../../candle-pattern-discovery-proposal.md) owns the design rationale.
+The [proposal](candle-pattern-discovery-proposal.md) owns the design rationale.
 The [project index](../../README.md) owns current progress. Private evidence and
 commit/rollback receipts live in `.codex-artifacts/candle-discovery/`.
 

@@ -81,11 +81,13 @@ Ten additional exact raw-byte/prefix comparisons pass.
 | Candle | `RUNTIME_S5_CANDLE_READY_FULL_ZERO` | Configured, not started; generation and strict intake remain manual |
 | Pivot | `RUNTIME_S5_PIVOT_READY_FULL_ZERO` | Configured, not started; generation and strict intake remain manual |
 
-These are handoff-time states, not a live status API. The earlier Candle job
+These are 2026-09-25 handoff-time states, not a live status API. The 2026-09-27
+documentation closeout does not inspect later operator runs; check existing run
+directories, native reports and the tester before continuing. The earlier Candle job
 `7689260149195731650` completed naturally before the readiness repair; preserve
 `RUNTIME_S5_CANDLE_FINAL_FULL_ZERO` as historical evidence, not a corrected
-training dataset. Its full strict intake was not run. No full job, automatic
-watcher, resource guard or queued launch remains active.
+training dataset. Its full strict intake was not run. At that handoff, no full
+job, automatic watcher, resource guard or queued launch remained active.
 
 Linux dataset root:
 `/home/admin/.wine/drive_c/users/admin/AppData/Roaming/MetaQuotes/Terminal/Common/Files/MQL5ModelDatasetV1/runs/`.

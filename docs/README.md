@@ -1,9 +1,17 @@
 # Current Project State
 
-Updated 2026-09-25. Both EAs are `2.00`, common schema `1`: Pivot
+Updated 2026-09-27. Both EAs are `2.00`, common schema `1`: Pivot
 `PIVOT_MACRO_V1` and Candle `CANDLE_PATTERN_ATR_V2`.
 This index owns changing status; guides own procedures and dated evidence keeps
 its original results.
+
+All five runtime optimization sprints are committed through `8cfb9dc`; no
+execution plan remains active. Start a new thread from this index, the
+[runtime contract](architecture/market-data-broker-executor.md) and
+[producer handoff](research/model-feature-producer-handoff.md). Corrected
+full-history generation and strict intake remain a manual follow-up; this
+documentation closeout does not verify subsequent operator runs. Check actual
+run files and tester state before continuing that work.
 
 The Pivot EA entrypoint is now `Pivot_Macro.mq5`, compiled as `Pivot_Macro.ex5`
 for clear MT5 selection. The naming follow-up preserves version `2.00`, engine
@@ -14,7 +22,7 @@ under ignored `.codex-artifacts/pivot-ea-rename-20260924/`,
 along with the source/binary mapping and validation receipts. Candle is unchanged.
 The framework acceptance below retains its original pre-rename source/binary pins.
 
-The current [runtime optimization plan](../mql5-model-runtime-optimization-plan.md)
+The archived [runtime optimization plan](plans/archive/mql5-model-runtime-optimization-plan.md)
 is complete across five ordered sprints, with full-history completion/acceptance explicitly
 handed to the operator by D10. Sprint 1 retains immutable old/current builds,
 native reports and isolated timing profiles in
@@ -38,7 +46,7 @@ Runtime S1 is committed as `d7d7097`. S2's measured shared-read assessment
 retains existing native queries and bounded 4096/256 structure processing:
 no safe read-cache optimization with a demonstrated gain was established.
 Early/late M1 update costs are stable per callback. This is a measurement-only
-result; indexed row construction and trial-state processing remain the next
+result; indexed row construction and trial-state processing were the next
 measured targets. S2 is committed as `c9ee8b4`; evidence is in
 `s2/assessment.json` in the runtime receipt directory.
 
@@ -89,7 +97,8 @@ producer binaries are unchanged. Year evidence is under runtime `s5/`.
 Full-source acceptance remains a manual follow-up. The pre-readiness optimized
 Candle job `7689260149195731650` completed naturally in 669.674 seconds over
 332,994,255 ticks; its strict full intake was deferred. It does not certify the
-latest readiness repair. No full job or automatic queue remains active. See the
+latest readiness repair. At the 2026-09-25 handoff, no full job or automatic queue
+remained active. See the
 [manual handoff](research/model-feature-producer-handoff.md#manual-full-history-handoff)
 for fresh corrected full-run IDs, accepted short datasets, settings and strict
 intake commands. The prepared source spans 2015-08-10
@@ -185,7 +194,7 @@ Execution receipts: `.codex-artifacts/model-feature-framework/`.
 MT5 M1-M4 delivery and P1-P4 optimization are complete. The independent
 [completed Candle Pattern Discovery execution](plans/archive/candle-pattern-discovery-plan.md) delivered
 the separate EA, eight-file dataset, offline contract and PostgreSQL research. Its
-[accepted proposal](../candle-pattern-discovery-proposal.md) retains the design.
+[archived proposal](plans/archive/candle-pattern-discovery-proposal.md) retains the design.
 The [Candle tool contract](../tools/candle_pattern_ml/README.md) owns its separate
 eight-file schema, fixed ATR execution, context and causal first-N selection.
 
@@ -454,6 +463,15 @@ are unchanged. Archived completed state must never resume an old plan.
 Private binaries, logs, original/recovered data, shared
 terminal directories and global Codex/plugin state are not cleanup targets.
 
+The 2026-09-27 closeout archives the completed runtime plan and both historical
+proposals under `docs/plans/archive/`, with Git recovery references. Exact
+pre-move document copies and both completed Planner/compaction state records are
+retained in `.codex-artifacts/thread-closeout-20260927/`, alongside the cleanup
+inventory and validation receipt. Active `.codex-hook-state/` is empty; installed
+hooks and global configuration remain unchanged. Preserve this closeout with
+the runtime receipts, producer handoff, selected datasets and binary rollback
+copies in `.codex-artifacts/ea-binary-cleanup-20260925T005115Z/`.
+
 ## Guides And History Recovery
 
 - [Runtime contract](architecture/market-data-broker-executor.md)
@@ -472,7 +490,7 @@ git show 879b39c:eurusd-tester-reliability-performance-plan.md
 git show 879b39c:docs/README.md
 ```
 
-The [accepted shared proposal](../pivot-fractal-v14-feature-capture-proposal.md)
+The [archived shared proposal](plans/archive/pivot-fractal-v14-feature-capture-proposal.md)
 and archived M1-M4 plan remain as historical references used by the Django plan;
 their planning-era instructions are not active MT5 work. The frozen V14 producer
 handoff, optimized build pin and selected-source gates remain authoritative for

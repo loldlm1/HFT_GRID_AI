@@ -1,5 +1,10 @@
 # XAUUSD Exness V13 Run Verification - 2026-09-09
 
+> Navigation updated 2026-09-27. This dated report retains its original findings.
+> Removed V13 source references below use `commit:path` notation for `git show`.
+> Subsequent correction evidence is in [parent-close acceptance](parent-close-chronology-acceptance-2026-09-09.md);
+> the [project index](../README.md) owns current producer and calendar status.
+
 ## Result
 
 `EXNESS_SESSION` and H1/M10/M3 are correct for the existing Exness workflow.
@@ -52,8 +57,8 @@ Example: parent `broker_17399006381623350226` closes at
 `2015.08.13 05:55:04`, while linked outcome
 `deep_outcome_11871739768232891951` is censored at `2015.08.13 05:55:06`.
 
-The producer's
-[`BuildDeepPivotParentExitOutcome`](../../services/trading_signals/deep_pivot_lifecycle.mqh)
+The producer's `BuildDeepPivotParentExitOutcome` in
+`3478c97:services/trading_signals/deep_pivot_lifecycle.mqh`
 uses the current observation tick's time. Broker reconciliation separately records
 the authoritative close-deal time. The strict
 [V13 validator](../../tools/deterministic_signal_ml/schema_contract.py)
@@ -80,8 +85,8 @@ during this verification.
 | `GBPJPY_Exness_2015` | `EXNESS_SESSION` | US default |
 | `BTCUSD_Exness_2017` | `EXNESS_SESSION` | US default |
 
-The suffixes preserve the base-symbol classification. In the current
-[`market_data_time.mqh`](../../services/utils/market_data_time.mqh), summer
+The suffixes preserve the base-symbol classification. In the then-current
+`3478c97:services/utils/market_data_time.mqh`, summer
 analysis time equals broker time; winter analysis time is broker time minus
 60 minutes. UK transitions use the last March/October Sunday at 01:00 on the
 broker clock. US transitions use the second March/first November Sunday at 02:00

@@ -6,7 +6,7 @@ feature set `candle_pattern_macro_micro_v1`. Candle 2.00 uses the
 and [model dataset reader](../model_dataset/README.md). The following runtime and
 wire descriptions document the retained 1.02 producer and earlier source runs.
 Pivot V14 intake and research remain separate.
-The [accepted proposal](../../candle-pattern-discovery-proposal.md) owns rationale;
+The [archived proposal](../../docs/plans/archive/candle-pattern-discovery-proposal.md) owns rationale;
 the [project index](../../docs/README.md) owns current acceptance status.
 
 ## Producer Contract

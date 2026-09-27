@@ -2,8 +2,9 @@
 
 Archived 2026-09-25 after completed framework execution. Original tracked path:
 `48f1f5f:mql5-model-feature-framework-plan.md`. This record retains its dated
-results; the [runtime plan](../../../mql5-model-runtime-optimization-plan.md)
-owns the follow-up optimization.
+results; the [completed runtime plan](mql5-model-runtime-optimization-plan.md)
+records the subsequent optimization. Both plans are archived; use the
+[current index](../../README.md) for acceptance status and manual follow-up.
 
 - **Generated:** 2026-09-24
 - **Status:** Completed - six sprints; operational gates remain open in the project index.
@@ -20,7 +21,7 @@ its original filenames and build pins. Use the current
 the engine ID and dataset contract remain unchanged.
 
 Post-completion planning follow-up, 2026-09-24: the
-[model runtime optimization plan](../../../mql5-model-runtime-optimization-plan.md)
+[model runtime optimization plan](mql5-model-runtime-optimization-plan.md)
 investigates the reported long-history slowdown in both engines. It is a new
 planning scope; this framework execution remains complete and is not restarted.
 

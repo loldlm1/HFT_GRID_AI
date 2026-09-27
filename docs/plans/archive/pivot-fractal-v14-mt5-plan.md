@@ -10,7 +10,7 @@
 **Generated**: 2026-09-16
 **Status**: Execution authorized; see `docs/README.md` for current progress.
 **Complexity**: High. Four ordered sprints, M1-M4.
-**Proposal**: [Accepted proposal](../../../pivot-fractal-v14-feature-capture-proposal.md)
+**Proposal**: [Accepted proposal](pivot-fractal-v14-feature-capture-proposal.md)
 **Consumer plan**: [Django V14 plan](/home/admin/python_projects/hft-grid-ai-orchestrator/pivot-fractal-v14-django-plan.md)
 
 ## Outcome And Boundaries

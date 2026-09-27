@@ -1,8 +1,13 @@
 # Proposal: V14 Timeframe Features And Broader Deep Capture
 
+> Archived 2026-09-27. Pre-move bytes:
+> `8cfb9dc:pivot-fractal-v14-feature-capture-proposal.md`.
+> Current shared-family features belong to the
+> [producer contract](../../architecture/model-feature-dataset.md).
+
 > Historical accepted proposal, retained for the separate Django plan's references.
 > MT5 implementation and optimization are complete; use the
-> [current index](docs/README.md) for accepted builds, source selection and open gates.
+> [current index](../../README.md) for accepted builds, source selection and open gates.
 > The [Django plan](/home/admin/python_projects/hft-grid-ai-orchestrator/pivot-fractal-v14-django-plan.md)
 > owns subsequent consumer decisions. Planning-era wording below is historical and
 > does not restart either workflow. Original bytes: `04b5c6a:pivot-fractal-v14-feature-capture-proposal.md`.
@@ -222,9 +227,9 @@ regression safety, broker-feed equivalence or production readiness.
 
 ## References
 
-- [Current MT5 state](docs/README.md)
-- [Runtime contract](docs/architecture/market-data-broker-executor.md)
-- [Custom-symbol source alignment](docs/research/exness-custom-symbol-alignment-2026-09-09.md)
+- [Current MT5 state](../../README.md)
+- [Runtime contract](../../architecture/market-data-broker-executor.md)
+- [Custom-symbol source alignment](../../research/exness-custom-symbol-alignment-2026-09-09.md)
 - [Django intake](/home/admin/python_projects/hft-grid-ai-orchestrator/docs/contracts/v13-intake.md)
 - [Django linked Deep research](/home/admin/python_projects/hft-grid-ai-orchestrator/docs/contracts/linked-deep-research-v1.md)
 - [Django staging and feedback](/home/admin/python_projects/hft-grid-ai-orchestrator/docs/operations/local-development.md)
