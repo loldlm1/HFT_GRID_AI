@@ -6,9 +6,9 @@ This index owns changing status; guides own procedures and dated evidence keeps
 its original results.
 
 The [entry-quality and lifecycle plan](../mql5-entry-quality-lifecycle-plan.md)
-has delivered all five implementation sprints; human acceptance remains pending.
-Sprints 1–4 are `47556f9`, `7a5607e`, `eb816df`, `afda9d4`; the execution journal
-records the final handoff commit. Both EAs apply
+is complete across five implementation sprints: `47556f9`, `7a5607e`, `eb816df`,
+`afda9d4`, `02297c8`. The user selected Q06 option B after automated validation:
+human acceptance is explicitly deferred, not claimed as passed. Both EAs apply
 the entry-only spread gate and per-entry Macro expiry. Baselines and execution receipts live in
 ignored `.codex-artifacts/entry-quality-lifecycle/`. The user authorized all five
 sprints; backend implementation and live rollout remain excluded.
@@ -51,6 +51,18 @@ declares conditional proof and supported durations; generated MQL and final EX5
 hashes are unchanged. The old handoff remains complete. Backend work was read-only;
 its ongoing optimization is preserved. No tester job remains active. Concrete
 human review cases are linked in the handoff; no live rollout is authorized.
+
+The requested XAUUSD/EURUSD closeout audit passes for both engines, using the
+unchanged S4 native week datasets and exact source/EX5/TSV hashes. It independently
+recalculates 14,166 trial proofs in points and checks 3,935 entry audit rows:
+zero unit/admission mismatches or entries/labels from rejected trials. Tested
+points/ticks are XAUUSD `0.001` and EURUSD `0.00001`; both directions and distance
+rejections occur in all four cases. Accepted requests, parity and native broker
+trade counts reconcile exactly: Candle/Pivot 15/71 on gold and 1,415/212 on EURUSD.
+Details: private `closeout/cross-symbol-audit.json` within the receipt directory.
+Existing native/strict checks and 95 tests remain valid; no source change,
+recompile or repeated tester generation was needed. Human review is deferred
+under plan D12; backend implementation and live gates retain their prior scope.
 
 All five prior runtime optimization sprints are committed through `8cfb9dc`.
 Start a new thread from this index, the

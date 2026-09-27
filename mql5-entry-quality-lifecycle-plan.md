@@ -2,7 +2,7 @@
 
 **Generated:** 2026-09-27
 
-**Status:** All five implementation sprints delivered. S1–S4: `47556f9` / `7a5607e` / `eb816df` / `afda9d4`; the execution journal records the S5 commit. Automated delivery is complete; human new-behavior acceptance remains pending under Q06 below.
+**Status:** Complete. All five implementation sprints committed: `47556f9` / `7a5607e` / `eb816df` / `afda9d4` / `02297c8`. Q06 is resolved by the user's explicit option-B deferral under D12, after passing the requested XAUUSD/EURUSD audit. Human acceptance remains deferred; no human or live acceptance is claimed.
 
 **Execution authorization:** The user explicitly authorized execution of all five sprints on 2026-09-27, including the specified checks and sprint commits. Backend implementation and live rollout remain excluded.
 
@@ -68,6 +68,7 @@ Out of scope:
 | D09 | User's plan request: one-to-three-year validation is sufficient as needed. | Default to one representative year per engine; no mandatory full-history rerun. |
 | D10 | User: avoid repeated LLM calls while slow background work runs. | Native job orchestration/waiting owns progress checks; no model-driven status polling loop. |
 | D11 | Planning was initially plan-only; superseded by the user's explicit request to execute all sprints. | Execute this plan in order, validate and commit each sprint before advancing. |
+| D12 | User selected Q06 option B conditional on successful automated validation, and requested confirmation of XAUUSD/EURUSD spread/point behavior in both engines and datasets. | Explicitly defer human acceptance and close this implementation delivery after the cross-symbol audit; retain future human/live gates. The audit passes with unchanged source/binary/TSV hashes. |
 
 Required product decisions pending: **none**. Operational prerequisites are gates
 to verify during authorized execution, not claims of available/running services.
@@ -777,7 +778,7 @@ Completion checklist:
 - [x] Any extension up to three years has a recorded reason; evidence limits are stated.
 - [x] Native background work used durable job identity and no model-driven polling loop.
 - [x] Incremental backend handoff and examples are complete; no backend execution is claimed.
-- [ ] Human acceptance of new behavior passes, or an explicit user deferral is recorded
+- [x] Human acceptance of new behavior passes, or an explicit user deferral is recorded
       with acceptance still pending. Other operational gates retain their prior scope;
       no live/deployment acceptance is implied by offline completion.
 - [x] Current status, version owners, links, ignored evidence and rollback pins are accurate.
@@ -967,13 +968,41 @@ Completion checklist:
   workload remains active. The final commit gate records its SHA and parent in
   the ignored journal; no history amendment is required.
 
-### Pending Required Acceptance Q06
+### Resolved Acceptance Q06 And Cross-Symbol Closeout
 
 AGENTS requires: "New behavior needs human tester/chart acceptance." Task 5.3
-retains this gate independently of the older Candle visual-polish deferral.
-All authorized automated implementation, validation, examples and handoff work
-is complete. The user must confirm reviewed acceptance, explicitly defer this
-human gate while keeping acceptance pending, or leave the delivery awaiting
-review. Silence and execution authorization do not answer Q06. No live rollout
-is included in any of these choices. The linked handoff supplies exact cases,
-reports, settings, source and binary pins for that decision.
+allows an explicit user deferral while retaining pending human acceptance. The
+user selected option B after the automated delivery and additionally requested
+XAUUSD/EURUSD verification. This scoped answer resolves Q06 under D12; it does
+not claim that a human reviewed the charts or authorize live rollout. Earlier
+Sprint 1–5 pending-review statements remain historical evidence.
+
+The four S4 H1/M3 real-tick week cases from 2015-08-17 through 2015-08-24 retain
+identical source, EX5 and all TSV hashes. Their prior full strict receipts are
+reused. A new independent calculation in point units checks native trial proof,
+executable quote side, minimum/risk price conversions, eligibility, unentered
+rejection facts, broker entry checks, exact parity and native report counts.
+
+| Native case | Point / trade tick | Trial proof rows | Entry audit rows | Actual broker trades |
+| --- | --- | ---: | ---: | ---: |
+| Candle XAUUSD | 0.001 / 0.001 | 3,255 | 1,080 | 15 |
+| Pivot XAUUSD | 0.001 / 0.001 | 1,234 | 319 | 71 |
+| Candle EURUSD | 0.00001 / 0.00001 | 7,649 | 2,078 | 1,415 |
+| Pivot EURUSD | 0.00001 / 0.00001 | 2,028 | 458 | 212 |
+
+All 14,166 proofs and 3,935 entry checks pass with zero admission/unit mismatches;
+both directions and distance rejections occur in every case. Denied entry checks
+never share an attempt with a successful entry send. Every accepted broker
+request has exactly one parity and matches the entered outcome/native trade
+count. Source review confirms both engines obtain their own symbol point/tick
+and fresh spread and share the pure price-unit formula; no pip conversion is
+used. Existing tests cover nonzero stops/freeze, exact equality, zero spread and
+tick size different from point. Those specification boundaries are synthetic
+coverage, not claimed native broker injection.
+
+Private evidence: `closeout/cross-symbol-audit.py` and
+`closeout/cross-symbol-audit.json` under the existing receipt directory. Native
+symbols are `XAUUSD_Exness_2015` and `EURUSD_Exness_2015`; the audit does not imply
+all broker/feed specifications or live behavior are certified. No new source,
+compiler or tester run was needed. A separate documentation closeout commit
+records this later user decision without amending any of the five sprint commits.

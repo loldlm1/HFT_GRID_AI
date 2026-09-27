@@ -263,10 +263,32 @@ adds audit rows and takes longer to read, with similar cost per row. These resul
 do not isolate an algorithmic gain or certify ten-year speed. No automatic
 second/third year was justified by the measured state/resource evidence.
 
+The user's subsequent cross-symbol verification reuses the exact accepted S4
+H1/M3 week runs, with every source/EX5/TSV hash unchanged. Independent point-unit
+arithmetic checks 14,166 trial proofs and 3,935 entry audit rows with zero unit or
+admission mismatches. Both BUY/SELL admissions and distance rejections are covered
+on both engines. Native accepted-request/parity/outcome/trade counts agree:
+
+| Tested symbol | Point / trade tick | Candle broker trades | Pivot broker trades |
+| --- | --- | ---: | ---: |
+| `XAUUSD_Exness_2015` | 0.001 / 0.001 | 15 | 71 |
+| `EURUSD_Exness_2015` | 0.00001 / 0.00001 | 1415 | 212 |
+
+Receipts: `closeout/cross-symbol-audit.json` in the same private evidence root.
+The rule uses each symbol's quote and specification in price units. The tested
+native symbols have zero stops/freeze levels and equal point/tick sizes; existing
+synthetic boundary tests additionally cover nonzero levels, unequal point/tick,
+zero spread and exact admission equality. No broker-wide or live certification
+is implied. Earlier native receipts and the published handoff archive are retained.
+
 ### Human Acceptance And Rollback
 
-New behavior still needs human tester/chart acceptance; prior Candle visual-polish
-deferral is separate. Concrete retained review cases:
+The user explicitly selected Q06 option B after automated validation and the
+cross-symbol audit: close this implementation delivery with human acceptance
+deferred. This is separate from the earlier Candle visual-polish deferral and
+does not claim human or live acceptance. Plan D12 records the decision. The
+original archive retains its pre-deferral receipt; this closeout annotation owns
+the later decision. Concrete cases remain available for the deferred review:
 
 | Case | Private report and review focus |
 | --- | --- |
