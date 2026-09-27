@@ -134,6 +134,38 @@ void LogPivotSignalTerminal(const PivotSignal &signal)
     Print("PIVOT_TERMINAL | ", message);
 }
 
+// Research-only delivery queue. Removing a closed execution record never waits
+// for a quote clock to catch up with a delayed broker deal.
+PivotSignal g_pivot_deferred_closes[];
+
+bool DeliverPivotClosedSignal(PivotSignal &signal)
+{
+  ExportPivotOwnershipExecutionCheckIfNeeded(signal);
+  ExportPivotTerminalExecutionCheck(signal);
+  return FinalizeBrokerParityAtBrokerTerminal(signal) && ExportPivotSignalOutcome(signal);
+}
+
+void FlushPivotDeferredCloses()
+{
+  if(!ModelReady()) return;
+  for(int i = ArraySize(g_pivot_deferred_closes) - 1; i >= 0; i--)
+  {
+    if(g_model_last_time < g_pivot_deferred_closes[i].execution.close_time_msc) continue;
+    if(!DeliverPivotClosedSignal(g_pivot_deferred_closes[i]))
+    {
+      PivotDatasetFail("DEFERRED_CLOSE_DELIVERY_FAILED");
+      return;
+    }
+    int last = ArraySize(g_pivot_deferred_closes) - 1;
+    if(i != last) g_pivot_deferred_closes[i].CopyFrom(g_pivot_deferred_closes[last]);
+    if(ArrayResize(g_pivot_deferred_closes, last) != last)
+    {
+      PivotDatasetFail("DEFERRED_CLOSE_REMOVE_FAILED");
+      return;
+    }
+  }
+}
+
 void FinalizePivotSignalTerminalStates()
 {
   for(int i = ArraySize(g_pivot_signals) - 1; i >= 0; i--)
@@ -147,10 +179,18 @@ void FinalizePivotSignalTerminalStates()
       if(ModelReady())
       {
         UpdatePivotOrigin(g_pivot_signals[i]);
-        ExportPivotOwnershipExecutionCheckIfNeeded(g_pivot_signals[i]);
-        ExportPivotTerminalExecutionCheck(g_pivot_signals[i]);
-        if(!FinalizeBrokerParityAtBrokerTerminal(g_pivot_signals[i]) ||
-           !ExportPivotSignalOutcome(g_pivot_signals[i]))
+        bool delivered = false;
+        if(g_model_last_time < g_pivot_signals[i].execution.close_time_msc)
+        {
+          int count = ArraySize(g_pivot_deferred_closes);
+          if(count < 2048 && ArrayResize(g_pivot_deferred_closes, count + 1, 16) == count + 1)
+          {
+            g_pivot_deferred_closes[count].CopyFrom(g_pivot_signals[i]);
+            delivered = true;
+          }
+        }
+        else delivered = DeliverPivotClosedSignal(g_pivot_signals[i]);
+        if(!delivered)
           PivotDatasetFail("CLOSED_BROKER_RESEARCH_DELIVERY_FAILED", "", 0,
                             g_pivot_signals[i].broker_signal_id);
       }
@@ -177,6 +217,7 @@ void FinalizePivotSignalTerminalStates()
 
 void ReconcileAndFinalizePivotSignals()
 {
+  FlushPivotDeferredCloses();
   for(int i = 0; i < ArraySize(g_pivot_signals); i++)
   {
     ReconcilePivotSignalBrokerPosition(g_pivot_signals[i]);
@@ -186,10 +227,13 @@ void ReconcileAndFinalizePivotSignals()
   FinalizePivotSignalTerminalStates();
 }
 
-void ProcessPivotSignalLifecycle()
+void ProcessPivotSignalLifecycle(const MqlTick &tick)
 {
   RefreshPivotBrokerOwnershipBoundary();
   ReconcileAndFinalizePivotSignals();
+  for(int i = 0; i < ArraySize(g_pivot_signals); i++)
+    RequestPivotBrokerExpiry(g_pivot_signals[i], tick);
+  FinalizePivotSignalTerminalStates();
 }
 
 void FinalizePivotSignalAttemptsForExport()

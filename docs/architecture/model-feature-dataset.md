@@ -12,7 +12,7 @@ facts through shared data services. Feature availability never controls orders.
 
 - Family: `MQL5_MODEL_FEATURES`; core schema: `1`.
 - Base features: `macro_micro_standard_v1`; extension schema: `1`.
-- Current engines: `PIVOT_MACRO_V1` (2.00), `CANDLE_PATTERN_ATR_V3` (2.10).
+- Current engines: `PIVOT_MACRO_V2` and `CANDLE_PATTERN_ATR_V3`, both 2.10.
 - Storage: `Common/Files/MQL5ModelDatasetV1/runs/<run_id>/`.
 - Default roles: Macro H1 and Micro M3, supported native periods with
   `Micro < Macro`. Fixed M1 structure is a separate declared feature source.
@@ -141,7 +141,7 @@ Required manifest keys (no duplicate or undeclared keys) are `dataset_family`,
 An unknown canonical symbol is the explicit value UNMAPPED, not an inferred name.
 Native broker/feed strings must not include account identifiers.
 
-Current outcome policies are `PIVOT_MACRO_OUTCOME_V1` and `CANDLE_ATR_OUTCOME_V2`;
+Current outcome policies are `PIVOT_MACRO_OUTCOME_V2` and `CANDLE_ATR_OUTCOME_V2`;
 historical tuples remain registered exactly as listed above.
 Structure policy is `STOCHASTIC_CLOSE_M1_V1` with 4096/256 warmup/catch-up bounds.
 Producer measurements and raw source receipts identify available precision;
@@ -824,7 +824,8 @@ for buys and Bid for sells, preserving the existing producer's spread behavior.
 They retain their observed touch time,
 rollover and last-structural-exit NOT_TRIGGERED behavior. They reference the
 origin snapshot, not an invented entry-time feature vector. Exact request parity
-exists even if stricter research distance eligibility is false. Deep input,
+copies the accepted request's fixed entry-admission proof. V1's independent
+research-only distance eligibility remains historical. Deep input,
 discovery, parent fan-out, trials, outcomes and parent-age selectors are removed.
 Generic M10 remains a supported role period. Macro broker checks remain intact.
 

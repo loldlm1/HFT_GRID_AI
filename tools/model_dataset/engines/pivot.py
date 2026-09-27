@@ -68,5 +68,20 @@ def validate(run):
                 require(integer(outcome["deadline_time_msc"]) == integer(outcome["entry_time_msc"]) + macro_ms, "Pivot actual entry deadline mismatch")
             if outcome["status"] == "TIME_EXIT":
                 require(integer(outcome["exit_time_msc"]) >= integer(outcome["deadline_time_msc"]), "Premature Pivot time exit")
+                if outcome["role"] != "BROKER":
+                    attempt = run.one("entry_attempts.tsv", "attempt_id", outcome["attempt_id"])
+                    bid, ask = (number(outcome[k]) for k in ("observed_exit_bid", "observed_exit_ask"))
+                    require(bid is not None and ask is not None and 0 < bid <= ask, "Missing Pivot expiry quote")
+                    quote = bid if attempt["direction"] == "BUY" else ask
+                    require(number(outcome["exit_price"]) == quote, "Pivot expiry executable price mismatch")
+                    require(all(outcome[k] is None for k in ("threshold_price", "gap_points", "nominal_r")), "Fabricated expiry threshold")
             if outcome["status"] in {"TP_FIRST", "SL_FIRST"}:
                 require(integer(outcome["exit_time_msc"]) < integer(outcome["deadline_time_msc"]), "Pivot deadline incorrectly labeled target")
+        for check in run.rows("execution_checks.tsv"):
+            if check["action"] != "TIME_EXIT":
+                continue
+            broker = run.db.execute("SELECT * FROM outcomes WHERE attempt_id=? AND role='BROKER'", (check["attempt_id"],)).fetchone()
+            require(broker is not None and broker["entry_time_msc"] is not None, "Expiry close has no owned entry")
+            require(integer(check["time_msc"]) >= integer(broker["deadline_time_msc"]), "Expiry request before deadline")
+            require(check["position_id"] == broker["position_id"] and check["position_ticket"] is not None, "Expiry request ownership mismatch")
+            require(check["protection_modified"] == "0", "Expiry modified protection")

@@ -57,7 +57,7 @@ bool PivotDatasetInitialize()
   ModelCaptureConfig config;
   config.enabled = Enable_Signal_Feature_Export;
   config.run_id = Signal_Feature_Run_Id;
-  config.engine = "PIVOT_MACRO_V1";
+  config.engine = "PIVOT_MACRO_V2";
   config.symbol = _Symbol;
   config.macro = Macro_Timeframe;
   config.micro = Micro_Timeframe;
@@ -472,7 +472,7 @@ string PivotDatasetEligibility(const PivotTrialEntry &trial)
 void PivotDatasetTrialGeometry(ModelRow &row, const PivotTrialEntry &trial)
 {
   bool pending = !trial.midpoint_touched && trial.identity.entry_policy == PIVOT_TRIAL_ENTRY_MIDPOINT_50;
-  bool geometry = trial.eligibility_status == PIVOT_TRIAL_ELIGIBILITY_ACTIVE && trial.geometry.valid;
+  bool geometry = !pending && trial.geometry.valid;
   if(!pending)
   {
     row.Number(MODEL_F_TRIALS_ENTRY_BID, trial.geometry.entry_bid);
@@ -495,12 +495,15 @@ void PivotDatasetTrialGeometry(ModelRow &row, const PivotTrialEntry &trial)
     row.Integer(MODEL_F_TRIALS_NORMALIZED_RISK_TICKS, trial.geometry.normalized_risk_ticks);
     row.Set(MODEL_F_TRIALS_GEOMETRY_EQUIVALENCE_ID, trial.geometry.geometry_equivalence_id);
   }
-  row.Number(MODEL_F_TRIALS_SPREAD_POINTS, trial.geometry.spread_points);
-  row.Number(MODEL_F_TRIALS_POINT_SIZE, trial.geometry.point_size);
-  row.Number(MODEL_F_TRIALS_TRADE_TICK_SIZE, trial.geometry.trade_tick_size);
-  row.Number(MODEL_F_TRIALS_STOPS_LEVEL_POINTS, trial.geometry.stops_level_points);
-  row.Number(MODEL_F_TRIALS_FREEZE_LEVEL_POINTS, trial.geometry.freeze_level_points);
-  row.Flag(MODEL_F_TRIALS_DISTANCE_ELIGIBLE, geometry && trial.geometry.distance_eligible);
+  if(!pending)
+  {
+    row.Number(MODEL_F_TRIALS_SPREAD_POINTS, trial.geometry.point_size > 0.0 ? trial.geometry.spread_points : EMPTY_VALUE);
+    row.Number(MODEL_F_TRIALS_POINT_SIZE, trial.geometry.point_size > 0.0 ? trial.geometry.point_size : EMPTY_VALUE);
+    row.Number(MODEL_F_TRIALS_TRADE_TICK_SIZE, trial.geometry.trade_tick_size > 0.0 ? trial.geometry.trade_tick_size : EMPTY_VALUE);
+    row.Number(MODEL_F_TRIALS_STOPS_LEVEL_POINTS, trial.geometry.stops_level_points >= 0.0 ? trial.geometry.stops_level_points : EMPTY_VALUE);
+    row.Number(MODEL_F_TRIALS_FREEZE_LEVEL_POINTS, trial.geometry.freeze_level_points >= 0.0 ? trial.geometry.freeze_level_points : EMPTY_VALUE);
+  }
+  if(geometry) row.Flag(MODEL_F_TRIALS_DISTANCE_ELIGIBLE, trial.geometry.distance_eligible);
   row.Set(MODEL_F_TRIALS_LOT_MODE, EnumToString(Lot_Type));
   row.Number(MODEL_F_TRIALS_LOT_STRATEGY_SIZE, Lot_Strategy_Size);
   row.Number(MODEL_F_TRIALS_REFERENCE_BALANCE, Lot_Type == EXECUTION_LOT_REFERENCE_BALANCE_PERCENT ? PIVOT_EXECUTION_REFERENCE_BALANCE : EMPTY_VALUE);
@@ -521,6 +524,10 @@ void PivotDatasetTrialGeometry(ModelRow &row, const PivotTrialEntry &trial)
 bool PivotDatasetRecordVirtualTrial(const PivotTrialEntry &trial)
 {
   if(!ModelReady()) return false;
+  bool entered = trial.eligibility_status == PIVOT_TRIAL_ELIGIBILITY_ACTIVE;
+  if(entered && (!trial.geometry.valid || !trial.geometry.distance_eligible ||
+                 trial.deadline_time_msc != trial.entry_time_msc + (long)g_pivot_macro_seconds * 1000))
+    return PivotDatasetRejectReference("TRIAL_ENTRY_INVARIANT");
   bool parity = trial.identity.role == PIVOT_TRIAL_ROLE_BROKER_PARITY;
   ModelRow row;
   row.Init(MODEL_TRIALS);
@@ -530,7 +537,11 @@ bool PivotDatasetRecordVirtualTrial(const PivotTrialEntry &trial)
   row.Set(MODEL_F_TRIALS_ENTRY_POLICY, PivotTrialEntryPolicyLabel(trial.identity.entry_policy));
   row.Integer(MODEL_F_TRIALS_RR, trial.identity.tp_r_multiple);
   PivotDatasetClock(row, MODEL_F_TRIALS_DECLARED_TIME_MSC, trial.declared_time_msc, trial.declared_time);
-  PivotDatasetClock(row, MODEL_F_TRIALS_ENTRY_TIME_MSC, trial.entry_time_msc, trial.entry_time);
+  if(entered)
+  {
+    PivotDatasetClock(row, MODEL_F_TRIALS_ENTRY_TIME_MSC, trial.entry_time_msc, trial.entry_time);
+    row.Clock(MODEL_F_TRIALS_DEADLINE_TIME_MSC, trial.deadline_time_msc);
+  }
   row.Set(MODEL_F_TRIALS_ELIGIBILITY, PivotDatasetEligibility(trial));
   row.Set(MODEL_F_TRIALS_REASON, ModelNullable(trial.ineligible_reason));
   PivotDatasetTrialGeometry(row, trial);
@@ -539,12 +550,13 @@ bool PivotDatasetRecordVirtualTrial(const PivotTrialEntry &trial)
 
 void PivotDatasetOutcomeGeometry(ModelRow &row, const PivotTrialEntry &trial)
 {
-  if(trial.entry_time > 0)
+  if(trial.entry_time > 0 && trial.eligibility_status == PIVOT_TRIAL_ELIGIBILITY_ACTIVE)
   {
     PivotDatasetClock(row, MODEL_F_OUTCOMES_ENTRY_TIME_MSC, trial.entry_time_msc, trial.entry_time);
     row.Number(MODEL_F_OUTCOMES_ENTRY_PRICE, trial.geometry.entry_price > 0.0 ? trial.geometry.entry_price : EMPTY_VALUE);
+    row.Clock(MODEL_F_OUTCOMES_DEADLINE_TIME_MSC, trial.deadline_time_msc);
   }
-  if(trial.eligibility_status == PIVOT_TRIAL_ELIGIBILITY_ACTIVE && trial.geometry.valid)
+  if(trial.geometry.valid)
   {
     row.Number(MODEL_F_OUTCOMES_SL, trial.geometry.stop_loss_price);
     row.Number(MODEL_F_OUTCOMES_TP, trial.geometry.take_profit_price);
@@ -558,8 +570,10 @@ bool PivotDatasetRecordVirtualOutcome(const PivotTrialOutcome &outcome)
   bool parity = outcome.identity.role == PIVOT_TRIAL_ROLE_BROKER_PARITY;
   bool tp = outcome.first_touch == PIVOT_TRIAL_FIRST_TOUCH_TP_FIRST;
   bool sl = outcome.first_touch == PIVOT_TRIAL_FIRST_TOUCH_SL_FIRST;
-  bool complete = tp || sl;
+  bool expired = outcome.first_touch == PIVOT_TRIAL_FIRST_TOUCH_TIME_EXIT;
+  bool complete = tp || sl || expired;
   string status = complete ? (tp ? "TP_FIRST" : "SL_FIRST") : "CENSORED_RUN_END";
+  if(expired) status = "TIME_EXIT";
   if(outcome.first_touch == PIVOT_TRIAL_FIRST_TOUCH_NOT_TRIGGERED) status = "NOT_TRIGGERED";
   if(outcome.first_touch == PIVOT_TRIAL_FIRST_TOUCH_INELIGIBLE) status = PivotDatasetEligibility(outcome.trial);
   ModelRow row;
@@ -584,9 +598,12 @@ bool PivotDatasetRecordVirtualOutcome(const PivotTrialOutcome &outcome)
     if(!outcome.virtual_quote_gross_available) return PivotDatasetRejectReference("VIRTUAL_PROFIT_UNAVAILABLE");
     PivotDatasetClock(row, MODEL_F_OUTCOMES_EXIT_TIME_MSC, outcome.terminal_time_msc, outcome.terminal_time);
     row.Number(MODEL_F_OUTCOMES_EXIT_PRICE, outcome.observed_exit_price);
-    row.Number(MODEL_F_OUTCOMES_THRESHOLD_PRICE, outcome.threshold_price);
-    row.Number(MODEL_F_OUTCOMES_GAP_POINTS, outcome.gap_points);
-    row.Number(MODEL_F_OUTCOMES_NOMINAL_R, outcome.virtual_nominal_r);
+    if(!expired)
+    {
+      row.Number(MODEL_F_OUTCOMES_THRESHOLD_PRICE, outcome.threshold_price);
+      row.Number(MODEL_F_OUTCOMES_GAP_POINTS, outcome.gap_points);
+      row.Number(MODEL_F_OUTCOMES_NOMINAL_R, outcome.virtual_nominal_r);
+    }
     row.Number(MODEL_F_OUTCOMES_GROSS_PROFIT, outcome.virtual_quote_gross_profit);
     double direction = outcome.direction == BULLISH ? 1.0 : -1.0;
     double risk = direction * (outcome.trial.geometry.entry_price - outcome.trial.geometry.stop_loss_price);
@@ -608,6 +625,7 @@ bool PivotDatasetRecordBrokerOutcome(const PivotSignal &signal, const bool run_e
   bool sl = closed && execution.terminal_reason == "BROKER_SL";
   string status = closed ? (tp ? "TP_FIRST" : (sl ? "SL_FIRST" : "OTHER_CLOSE")) :
                   (run_end ? "CENSORED_RUN_END" : "REJECTED");
+  if(closed && execution.terminal_reason == "TIME_EXIT") status = "TIME_EXIT";
   ModelRow row;
   row.Init(MODEL_OUTCOMES);
   row.Set(MODEL_F_OUTCOMES_TRIAL_ID, PivotDatasetBrokerTrialId(signal.origin_id));
@@ -615,7 +633,7 @@ bool PivotDatasetRecordBrokerOutcome(const PivotSignal &signal, const bool run_e
   row.Set(MODEL_F_OUTCOMES_ROLE, "BROKER");
   row.Integer(MODEL_F_OUTCOMES_RR, 1);
   row.Set(MODEL_F_OUTCOMES_STATUS, status);
-  row.Set(MODEL_F_OUTCOMES_BROKER_REASON, ModelNullable(execution.terminal_reason));
+  row.Set(MODEL_F_OUTCOMES_BROKER_REASON, ModelNullable(closed ? execution.broker_close_reason : execution.terminal_reason));
   row.Clock(MODEL_F_OUTCOMES_OBSERVED_TIME_MSC, g_model_last_time);
   row.Number(MODEL_F_OUTCOMES_SL, execution.stop_loss_price);
   row.Number(MODEL_F_OUTCOMES_TP, execution.take_profit_price);
@@ -643,6 +661,7 @@ bool PivotDatasetRecordBrokerOutcome(const PivotSignal &signal, const bool run_e
   }
   if(entered)
   {
+    row.Clock(MODEL_F_OUTCOMES_DEADLINE_TIME_MSC, execution.deadline_time_msc);
     PivotDatasetClock(row, MODEL_F_OUTCOMES_ENTRY_TIME_MSC, execution.broker_entry_time_msc, execution.broker_entry_time);
     row.Number(MODEL_F_OUTCOMES_ENTRY_PRICE, execution.broker_entry_price);
     row.Number(MODEL_F_OUTCOMES_FILL_DEVIATION_POINTS, (execution.broker_entry_price - execution.planned_entry_price) / _Point);
@@ -680,6 +699,8 @@ bool PivotDatasetRecordBrokerOutcome(const PivotSignal &signal, const bool run_e
 
 bool PivotDatasetRecordBrokerTrial(const PivotSignal &signal, const BrokerExecutionCheck &check)
 {
+  if(check.allowed && (!check.entry_admission.valid || !check.entry_admission.eligible))
+    return PivotDatasetRejectReference("BROKER_ENTRY_ADMISSION_INVARIANT");
   ModelRow row;
   row.Init(MODEL_TRIALS);
   row.Set(MODEL_F_TRIALS_TRIAL_ID, PivotDatasetBrokerTrialId(signal.origin_id));
@@ -688,6 +709,21 @@ bool PivotDatasetRecordBrokerTrial(const PivotSignal &signal, const BrokerExecut
   row.Set(MODEL_F_TRIALS_ENTRY_POLICY, "STRUCTURAL");
   row.Integer(MODEL_F_TRIALS_RR, 1);
   PivotDatasetClock(row, MODEL_F_TRIALS_DECLARED_TIME_MSC, check.broker_time_msc, check.broker_time);
+  if(check.allowed) row.Clock(MODEL_F_TRIALS_DEADLINE_TIME_MSC, check.broker_time_msc + (long)g_pivot_macro_seconds * 1000);
+  if(check.entry_admission.valid)
+  {
+    row.Number(MODEL_F_TRIALS_ENTRY_BID, check.bid);
+    row.Number(MODEL_F_TRIALS_ENTRY_ASK, check.ask);
+    row.Number(MODEL_F_TRIALS_POINT_SIZE, check.point_size);
+    row.Number(MODEL_F_TRIALS_TRADE_TICK_SIZE, check.trade_tick_size);
+    row.Number(MODEL_F_TRIALS_SPREAD_POINTS, check.spread_points);
+    row.Number(MODEL_F_TRIALS_STOPS_LEVEL_POINTS, check.stops_distance_points);
+    row.Number(MODEL_F_TRIALS_FREEZE_LEVEL_POINTS, check.freeze_distance_points);
+    row.Number(MODEL_F_TRIALS_NORMALIZED_RISK_DISTANCE_PRICE, check.entry_admission.risk_price);
+    row.Number(MODEL_F_TRIALS_NORMALIZED_RISK_DISTANCE_POINTS, check.entry_admission.risk_price / check.point_size);
+    row.Number(MODEL_F_TRIALS_MINIMUM_RISK_DISTANCE_POINTS, check.entry_admission.minimum_price / check.point_size);
+    row.Flag(MODEL_F_TRIALS_DISTANCE_ELIGIBLE, check.entry_admission.eligible);
+  }
   row.Number(MODEL_F_TRIALS_ENTRY_PRICE, check.planned_entry_price);
   row.Number(MODEL_F_TRIALS_SL, check.stop_loss_price);
   row.Number(MODEL_F_TRIALS_TP, check.take_profit_price);
@@ -797,6 +833,42 @@ bool PivotDatasetRecordExecutionCheck(const PivotSignal &signal, const BrokerExe
   return !send || PivotDatasetRecordBrokerTrial(signal, check);
 }
 
+void PivotDatasetRecordExpiryCheck(PivotSignal &signal, const MqlTick &tick,
+                                   const MqlTradeRequest &request, const MqlTradeCheckResult &check,
+                                   const MqlTradeResult &result, const bool allowed,
+                                   const bool accepted, const string reason)
+{
+  if(!ModelReady()) return;
+  ModelRow row;
+  row.Init(MODEL_EXECUTION_CHECKS);
+  row.Set(MODEL_F_EXECUTION_CHECKS_CHECK_ID, signal.broker_signal_id + ":" +
+          ModelInteger(NextBrokerExecutionCheckSequence(signal)) + ":TIME_EXIT");
+  row.Set(MODEL_F_EXECUTION_CHECKS_ATTEMPT_ID, PivotDatasetAttemptId(signal.origin_id));
+  row.Set(MODEL_F_EXECUTION_CHECKS_ACTION, "TIME_EXIT");
+  row.Clock(MODEL_F_EXECUTION_CHECKS_TIME_MSC, tick.time_msc);
+  row.Integer(MODEL_F_EXECUTION_CHECKS_SEQUENCE, signal.execution.last_check_sequence);
+  row.Flag(MODEL_F_EXECUTION_CHECKS_ALLOWED, allowed);
+  row.Set(MODEL_F_EXECUTION_CHECKS_REASON, reason);
+  row.Number(MODEL_F_EXECUTION_CHECKS_BID, tick.bid);
+  row.Number(MODEL_F_EXECUTION_CHECKS_ASK, tick.ask);
+  row.Number(MODEL_F_EXECUTION_CHECKS_ENTRY_PRICE, request.price);
+  row.Number(MODEL_F_EXECUTION_CHECKS_VOLUME, request.volume);
+  row.Integer(MODEL_F_EXECUTION_CHECKS_POSITION_TICKET, (long)request.position);
+  row.Integer(MODEL_F_EXECUTION_CHECKS_POSITION_ID, (long)signal.execution.position_identifier);
+  row.Integer(MODEL_F_EXECUTION_CHECKS_CHECK_RETCODE, check.retcode);
+  row.Flag(MODEL_F_EXECUTION_CHECKS_SEND_PERFORMED, allowed);
+  row.Flag(MODEL_F_EXECUTION_CHECKS_SEND_SUCCEEDED, accepted);
+  row.Flag(MODEL_F_EXECUTION_CHECKS_PROTECTION_MODIFIED, false);
+  if(allowed)
+  {
+    row.Set(MODEL_F_EXECUTION_CHECKS_TRADE_ACTION, "TRADE_ACTION_DEAL");
+    row.Integer(MODEL_F_EXECUTION_CHECKS_SEND_RETCODE, result.retcode);
+    if(result.order > 0) row.Integer(MODEL_F_EXECUTION_CHECKS_ORDER_TICKET, (long)result.order);
+    if(result.deal > 0) row.Integer(MODEL_F_EXECUTION_CHECKS_DEAL_TICKET, (long)result.deal);
+  }
+  if(!ModelWrite(row) && !g_model_failed) ModelFail("PIVOT_EXPIRY_CHECK_WRITE");
+}
+
 void DiscardFailedPivotResearch()
 {
   if(!g_model_failed || g_pivot_dataset_research_discarded) return;
@@ -804,6 +876,7 @@ void DiscardFailedPivotResearch()
   ArrayFree(g_pivot_dataset_pending_origins);
   ArrayFree(g_pivot_dataset_parity_links);
   ArrayFree(g_pivot_trial_active_states);
+  ArrayFree(g_pivot_deferred_closes);
   ModelReleaseBuffers();
   ModelCloseIndicators();
   PrintFormat("PIVOT_DATASET_RESEARCH_RELEASED | broker_states=%d", ArraySize(g_pivot_signals));

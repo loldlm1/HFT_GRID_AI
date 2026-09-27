@@ -55,15 +55,18 @@ bool RefreshSymbolTradingConstraints(const string symbol, SymbolTradingConstrain
   constraints.min_volume          = SymbolInfoDouble(symbol, SYMBOL_VOLUME_MIN);
   constraints.max_volume          = SymbolInfoDouble(symbol, SYMBOL_VOLUME_MAX);
   constraints.volume_step         = SymbolInfoDouble(symbol, SYMBOL_VOLUME_STEP);
-  constraints.freeze_level_points = (double)SymbolInfoInteger(symbol, SYMBOL_TRADE_FREEZE_LEVEL);
-  constraints.stops_level_points  = (double)SymbolInfoInteger(symbol, SYMBOL_TRADE_STOPS_LEVEL);
+  long freeze = -1, stops = -1;
+  bool distances_loaded = SymbolInfoInteger(symbol, SYMBOL_TRADE_FREEZE_LEVEL, freeze) &&
+                          SymbolInfoInteger(symbol, SYMBOL_TRADE_STOPS_LEVEL, stops);
+  constraints.freeze_level_points = (double)freeze;
+  constraints.stops_level_points  = (double)stops;
   constraints.min_stop_distance_points = MathMax(constraints.freeze_level_points,
                                                  constraints.stops_level_points);
   constraints.last_refresh        = TimeCurrent();
 
   bool spec_loaded = (constraints.point_size > 0.0) &&
                      (constraints.tick_size > 0.0) &&
-                     (constraints.tick_value > 0.0);
+                     (constraints.tick_value > 0.0) && distances_loaded && freeze >= 0 && stops >= 0;
 
   if(!spec_loaded)
   {

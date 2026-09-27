@@ -297,6 +297,7 @@ struct PivotTrialEntry
   long declared_time_msc;
   datetime entry_time;
   long entry_time_msc;
+  long deadline_time_msc;
   datetime origin_expiry_time;
   bool boundary_available;
   double boundary_price;
@@ -327,6 +328,7 @@ struct PivotTrialEntry
     declared_time_msc = 0;
     entry_time = 0;
     entry_time_msc = 0;
+    deadline_time_msc = 0;
     origin_expiry_time = 0;
     boundary_available = false;
     boundary_price = 0.0;
@@ -348,6 +350,7 @@ struct PivotTrialEntry
     declared_time_msc = other.declared_time_msc;
     entry_time = other.entry_time;
     entry_time_msc = other.entry_time_msc;
+    deadline_time_msc = other.deadline_time_msc;
     origin_expiry_time = other.origin_expiry_time;
     boundary_available = other.boundary_available;
     boundary_price = other.boundary_price;

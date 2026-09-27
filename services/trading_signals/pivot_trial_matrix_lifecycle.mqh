@@ -89,16 +89,14 @@ bool ResolvePivotTrialMoneyPlan(const PivotTrialGeometry &geometry,
 bool LoadPivotTrialBrokerFacts(BrokerExecutionCheck &facts_out)
 {
   facts_out.Reset();
-  if(BrokerConstraintsNeedRefresh() &&
-     !RefreshSymbolTradingConstraints(_Symbol, g_symbol_constraints))
-    return false;
+  bool refreshed = RefreshSymbolTradingConstraints(_Symbol, g_symbol_constraints);
   facts_out.point_size = g_symbol_constraints.point_size;
   facts_out.trade_tick_size = g_symbol_constraints.tick_size;
   facts_out.stops_distance_points =
     g_symbol_constraints.stops_level_points;
   facts_out.freeze_distance_points =
     g_symbol_constraints.freeze_level_points;
-  return facts_out.point_size > 0.0 && facts_out.trade_tick_size > 0.0 &&
+  return refreshed && facts_out.point_size > 0.0 && facts_out.trade_tick_size > 0.0 &&
          facts_out.stops_distance_points >= 0.0 &&
          facts_out.freeze_distance_points >= 0.0;
 }
@@ -196,6 +194,7 @@ bool BuildBrokerParityTrial(const PivotSignal &signal,
   trial_out.declared_time_msc = send_check.broker_time_msc;
   trial_out.entry_time = send_check.broker_time;
   trial_out.entry_time_msc = send_check.broker_time_msc;
+  trial_out.deadline_time_msc = trial_out.entry_time_msc + (long)g_pivot_macro_seconds * 1000;
   trial_out.origin_expiry_time = origin_expiry;
   trial_out.midpoint_touched = true;
 
@@ -217,21 +216,14 @@ bool BuildBrokerParityTrial(const PivotSignal &signal,
   trial_out.geometry.trade_tick_size = trade_tick_size;
   trial_out.geometry.stops_level_points = send_check.stops_distance_points;
   trial_out.geometry.freeze_level_points = send_check.freeze_distance_points;
-  if(!CalculateStrictRiskDistancePoints(trial_out.geometry.spread_points,
-                                        point_size,
-                                        trade_tick_size,
-                                        send_check.stops_distance_points,
-                                        send_check.freeze_distance_points,
-                                        trial_out.geometry.minimum_risk_distance_points))
+  // Exact parity uses the accepted request's proof, never a research recheck.
+  if(!send_check.entry_admission.valid || !send_check.entry_admission.eligible)
   {
-    PivotDatasetFail("PARITY_MINIMUM_DISTANCE_FAILED", "", 0, signal.broker_signal_id);
+    PivotDatasetFail("PARITY_ENTRY_ADMISSION_INVALID", "", 0, signal.broker_signal_id);
     return false;
   }
-  trial_out.geometry.distance_eligible =
-    trial_out.geometry.normalized_risk_distance_points + 1e-7 >=
-    trial_out.geometry.minimum_risk_distance_points;
-  // Parity copies an accepted request. Preserve research distance eligibility
-  // as a fact, but never use its extra tick to veto the broker's shadow.
+  trial_out.geometry.minimum_risk_distance_points = send_check.entry_admission.minimum_price / point_size;
+  trial_out.geometry.distance_eligible = true;
   trial_out.geometry.geometry_equivalence_id =
     PivotTrialGeometryEquivalenceId(signal.origin_id, signal.direction,
                                     request.price, request.sl, request.tp);
@@ -321,6 +313,7 @@ bool BuildInitialPivotTrial(const PivotSignal &signal,
                               trial_out.geometry);
     trial_out.entry_time = signal.trigger_time;
     trial_out.entry_time_msc = signal.trigger_time_msc;
+    trial_out.deadline_time_msc = trial_out.entry_time_msc + (long)g_pivot_macro_seconds * 1000;
     trial_out.midpoint_touched = true;
     trial_out.origin_window_active_at_entry =
       trial_out.origin_expiry_time > trial_out.entry_time;
@@ -465,6 +458,7 @@ bool FinalizePendingMidpointIneligibleAt(
   const PivotTrialActiveState &state,
   const MqlTick &tick,
   const BrokerExecutionCheck &facts,
+  const PivotTrialGeometry &geometry,
   const PivotTrialEligibilityStatuses eligibility_status,
   const string terminal_reason)
 {
@@ -476,7 +470,8 @@ bool FinalizePendingMidpointIneligibleAt(
   trial.entry_time_msc = tick.time_msc;
   trial.midpoint_touched = true;
   trial.origin_window_active_at_entry = trial.origin_expiry_time > tick.time;
-  PrimePivotTrialQuoteFacts(trial.direction, tick, facts, trial.geometry);
+  if(geometry.valid) trial.geometry.CopyFrom(geometry);
+  else PrimePivotTrialQuoteFacts(trial.direction, tick, facts, trial.geometry);
   trial.money_plan.Reset();
   trial.eligibility_status = eligibility_status;
   trial.ineligible_reason = terminal_reason;
@@ -538,12 +533,16 @@ void FinalizePendingMidpointLanesForOrigin(const string origin_id,
   }
 }
 
+// Reused storage; facts_loaded below invalidates the snapshot on every callback.
+BrokerExecutionCheck g_pivot_midpoint_entry_facts;
+
 bool ActivatePendingMidpointLanesAtTick(const MqlTick &tick)
 {
   if(!PivotTrialQuoteValid(tick))
     return false;
 
   bool complete = true;
+  bool facts_loaded = false, facts_valid = false;
   for(int i = PivotTrialActiveStateCount() - 1; i >= 0; i--)
   {
     if(!g_pivot_trial_active_states[i].active ||
@@ -561,10 +560,17 @@ bool ActivatePendingMidpointLanesAtTick(const MqlTick &tick)
     if(!CopyPivotTrialActiveStateAt(i, state))
       continue;
 
-    BrokerExecutionCheck facts;
-    if(!LoadPivotTrialBrokerFacts(facts))
+    PivotTrialGeometry geometry;
+    if(!facts_loaded)
     {
-      complete = false;
+      facts_valid = LoadPivotTrialBrokerFacts(g_pivot_midpoint_entry_facts);
+      facts_loaded = true;
+    }
+    if(!facts_valid)
+    {
+      if(!FinalizePendingMidpointIneligibleAt(i, state, tick, g_pivot_midpoint_entry_facts, geometry,
+           PIVOT_TRIAL_ELIGIBILITY_INELIGIBLE_GEOMETRY, "MIDPOINT_SPECIFICATION_UNAVAILABLE"))
+        complete = false;
       continue;
     }
     double entry_price = PivotTrialEntryPriceFromTick(state.trial.direction,
@@ -581,24 +587,24 @@ bool ActivatePendingMidpointLanesAtTick(const MqlTick &tick)
            i,
            state,
            tick,
-           facts,
+           g_pivot_midpoint_entry_facts,
+           geometry,
            PIVOT_TRIAL_ELIGIBILITY_INELIGIBLE_GEOMETRY,
            "MIDPOINT_GAP_THROUGH_BOUNDARY"))
         complete = false;
       continue;
     }
 
-    PivotTrialGeometry geometry;
     if(!BuildPivotTrialGeometryAtStop(
          state.trial.identity.origin_id,
          state.trial.direction,
          tick,
          state.trial.boundary_price,
          state.trial.identity.tp_r_multiple,
-         facts.point_size,
-         facts.trade_tick_size,
-         facts.stops_distance_points,
-         facts.freeze_distance_points,
+         g_pivot_midpoint_entry_facts.point_size,
+         g_pivot_midpoint_entry_facts.trade_tick_size,
+         g_pivot_midpoint_entry_facts.stops_distance_points,
+         g_pivot_midpoint_entry_facts.freeze_distance_points,
          true,
          geometry))
     {
@@ -606,7 +612,8 @@ bool ActivatePendingMidpointLanesAtTick(const MqlTick &tick)
            i,
            state,
            tick,
-           facts,
+           g_pivot_midpoint_entry_facts,
+           geometry,
            PIVOT_TRIAL_ELIGIBILITY_INELIGIBLE_GEOMETRY,
            "MIDPOINT_GEOMETRY_INVALID"))
         complete = false;
@@ -618,7 +625,8 @@ bool ActivatePendingMidpointLanesAtTick(const MqlTick &tick)
            i,
            state,
            tick,
-           facts,
+           g_pivot_midpoint_entry_facts,
+           geometry,
            PIVOT_TRIAL_ELIGIBILITY_INELIGIBLE_DISTANCE,
            "MIDPOINT_DISTANCE_NOT_MET"))
         complete = false;
@@ -632,7 +640,8 @@ bool ActivatePendingMidpointLanesAtTick(const MqlTick &tick)
            i,
            state,
            tick,
-           facts,
+           g_pivot_midpoint_entry_facts,
+           geometry,
            PIVOT_TRIAL_ELIGIBILITY_INELIGIBLE_MONEY,
            "MIDPOINT_MONEY_PLAN_INVALID"))
         complete = false;
@@ -643,6 +652,7 @@ bool ActivatePendingMidpointLanesAtTick(const MqlTick &tick)
     state.trial.money_plan.CopyFrom(money_plan);
     state.trial.entry_time = tick.time;
     state.trial.entry_time_msc = tick.time_msc;
+    state.trial.deadline_time_msc = tick.time_msc + (long)g_pivot_macro_seconds * 1000;
     state.trial.midpoint_touched = true;
     state.trial.origin_window_active_at_entry =
       state.trial.origin_expiry_time > tick.time;
@@ -762,6 +772,7 @@ bool PivotTrialFirstTouchReady(const PivotTrialEntry &trial,
      tick.time <= trial.entry_time)
     return false;
   exit_price = PivotTrialExitPriceFromTick(trial.direction, tick);
+  if(trial.deadline_time_msc > 0 && tick.time_msc >= trial.deadline_time_msc) return true;
   tp_touched = trial.direction == BULLISH
                ? exit_price >= trial.geometry.take_profit_price
                : exit_price <= trial.geometry.take_profit_price;
@@ -786,10 +797,11 @@ bool ResolvePivotTrialFirstTouch(const PivotTrialEntry &trial,
   outcome_out.terminal_time_msc = tick.time_msc;
   outcome_out.direction = trial.direction;
   outcome_out.terminal_time = tick.time;
-  outcome_out.first_touch = tp_touched
+  bool expired = trial.deadline_time_msc > 0 && tick.time_msc >= trial.deadline_time_msc;
+  outcome_out.first_touch = expired ? PIVOT_TRIAL_FIRST_TOUCH_TIME_EXIT : tp_touched
                             ? PIVOT_TRIAL_FIRST_TOUCH_TP_FIRST
                             : PIVOT_TRIAL_FIRST_TOUCH_SL_FIRST;
-  outcome_out.terminal_reason = tp_touched ? "TP_THRESHOLD" : "SL_THRESHOLD";
+  outcome_out.terminal_reason = expired ? "ENTRY_PLUS_MACRO" : (tp_touched ? "TP_THRESHOLD" : "SL_THRESHOLD");
   outcome_out.threshold_price = tp_touched
                                ? trial.geometry.take_profit_price
                                : trial.geometry.stop_loss_price;
@@ -813,9 +825,9 @@ bool ResolvePivotTrialFirstTouch(const PivotTrialEntry &trial,
   if(outcome_out.virtual_quote_gross_available)
     outcome_out.virtual_quote_gross_r = outcome_out.virtual_quote_gross_profit /
                                         MathAbs(trial.money_plan.virtual_expected_stop_loss);
-  outcome_out.virtual_binary_eligible = true;
-  outcome_out.virtual_binary_target = tp_touched ? 1 : 0;
-  outcome_out.virtual_exclusion_reason = "";
+  outcome_out.virtual_binary_eligible = !expired;
+  outcome_out.virtual_binary_target = expired ? -1 : (tp_touched ? 1 : 0);
+  outcome_out.virtual_exclusion_reason = expired ? "TIME_EXIT" : "";
   outcome_out.first_touch_consistent = true;
   return true;
 }
@@ -909,7 +921,7 @@ bool FinalizeBrokerParityAtBrokerTerminal(const PivotSignal &signal)
   return RemovePivotTrialActiveStateAt(state_index);
 }
 
-void ProcessPivotTrialLanesTick(const MqlTick &tick)
+void ProcessPivotTrialLanesTick(const MqlTick &tick, const bool expiry_only = false)
 {
   if(!ModelReady() || !PivotTrialQuoteValid(tick) ||
      PivotTrialResearchIntegrityFailed())
@@ -921,6 +933,7 @@ void ProcessPivotTrialLanesTick(const MqlTick &tick)
     if(!g_pivot_trial_active_states[i].active ||
        g_pivot_trial_active_states[i].pending_entry)
       continue;
+    if(expiry_only && tick.time_msc < g_pivot_trial_active_states[i].trial.deadline_time_msc) continue;
     // Most quotes reach neither threshold; construct the outcome only on touch.
     double exit_price = 0.0;
     bool tp_touched = false;
@@ -953,7 +966,7 @@ void ProcessPivotTrialLanesTick(const MqlTick &tick)
 
   // Touches create a new lane entry clock; the touch tick cannot also resolve
   // its TP/SL because first-touch observation requires a later quote.
-  if(!ActivatePendingMidpointLanesAtTick(tick))
+  if(!expiry_only && !ActivatePendingMidpointLanesAtTick(tick))
     PivotDatasetFail("MIDPOINT_TOUCH_ACTIVATION_FAILED");
 }
 

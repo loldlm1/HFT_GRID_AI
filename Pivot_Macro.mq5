@@ -4,7 +4,7 @@
 //+------------------------------------------------------------------+
 #property copyright     "https://tradingsniperpanel.com/"
 #property description   "Copyright Trading Sniper Team."
-#property version       "2.00"
+#property version       "2.10"
 #property description   "Support Contact @chu4xtrade"
 #property description   "All Rights Reserved for the Trading Sniper Team."
 #property description   "Pivot Macro Model Feature Collector And Broker Executor"
@@ -20,10 +20,11 @@ ulong g_execution_magic = 0;
 SymbolTradingConstraints g_symbol_constraints;
 bool g_tester_interval_completed = false;
 bool g_pivot_run_finalized = false;
+int g_pivot_macro_seconds = 0;
 
 ulong ResolveStableExecutionMagic()
 {
-  string source = "HFT_GRID_AI_PIVOT_MACRO_V1|" + _Symbol;
+  string source = "HFT_GRID_AI_PIVOT_MACRO_V2|" + _Symbol;
   ulong hash = 1469598103934665603;
   for(int i = 0; i < StringLen(source); i++)
   {
@@ -160,6 +161,7 @@ int OnInit()
 {
   g_tester_interval_completed = false;
   g_pivot_run_finalized = false;
+  g_pivot_macro_seconds = PeriodSeconds(Macro_Timeframe);
   ResetQueryDebugLogSession();
   string timeframe_reason = "";
   if(!ValidatePivotTimeframeInputs(timeframe_reason))
@@ -211,6 +213,11 @@ int OnInit()
     RefreshExecutionVisualization();
     ChartRedraw(ChartID());
   }
+  if(!EventSetTimer(1))
+  {
+    PivotDatasetFail("TIMER_INITIALIZATION");
+    return INIT_FAILED;
+  }
   return INIT_SUCCEEDED;
 }
 
@@ -220,6 +227,8 @@ void FinalizePivotRunExport()
     return;
   g_pivot_run_finalized = true;
   ReconcileAndFinalizePivotSignals();
+  if(ModelReady() && ArraySize(g_pivot_deferred_closes) > 0)
+    PivotDatasetFail("RUN_END_CLOSE_OBSERVATION_UNAVAILABLE");
   PivotDatasetCaptureResearchFailure();
   if(!g_model_failed)
     FinalizePivotSignalAttemptsForExport();
@@ -234,6 +243,7 @@ void FinalizePivotRunExport()
 
 void OnDeinit(const int reason)
 {
+  EventKillTimer();
   FinalizePivotRunExport();
   CloseAppendFileLog();
   ModelCloseIndicators();
@@ -256,7 +266,21 @@ void OnTradeTransaction(const MqlTradeTransaction &trans,
 {
   MqlTick tick;
   if(RefreshCustomSymbolRates(tick) && tick.time_msc > 0) ModelObserve(tick, g_model_sequence + 1);
-  ReconcileAndFinalizePivotSignals();
+  ProcessPivotSignalLifecycle(tick);
+  HandlePivotResearchFailureAtEventBoundary();
+}
+
+void OnTimer()
+{
+  if(g_pivot_run_finalized) return;
+  MqlTick tick;
+  if(!RefreshCustomSymbolRates(tick) || !PivotTrialQuoteValid(tick) || tick.time_msc <= 0) return;
+  // Lifecycle clock only: timer callbacks cannot discover origins or capture features.
+  if(g_model_first_time == 0) g_model_first_time = tick.time_msc;
+  if(tick.time_msc >= g_model_last_time) g_model_last_time = tick.time_msc;
+  g_model_sequence++;
+  ProcessPivotSignalLifecycle(tick);
+  ProcessPivotTrialLanesTick(tick, true);
   HandlePivotResearchFailureAtEventBoundary();
 }
 
@@ -271,7 +295,7 @@ void OnTick()
     return;
   }
 
-  ProcessPivotSignalLifecycle();
+  ProcessPivotSignalLifecycle(tick);
   bool pivot_context_ready =
     RefreshPivotFractalRuntimeContext(tick.time);
   ProcessPivotTrialLanesTick(tick);

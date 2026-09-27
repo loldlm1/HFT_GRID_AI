@@ -344,19 +344,16 @@ bool BuildPivotTrialGeometry(const string origin_id,
     geometry_out.invalid_reason = "EXACT_INTEGER_R_GEOMETRY_FAILED";
     return false;
   }
-  if(!CalculateStrictRiskDistancePoints(geometry_out.spread_points,
-                                        point_size,
-                                        trade_tick_size,
-                                        stops_level_points,
-                                        freeze_level_points,
-                                        geometry_out.minimum_risk_distance_points))
+  EntryAdmissionFacts admission = {};
+  if(!CalculateEntryAdmission(direction == BULLISH ? 1 : -1, tick.bid, tick.ask,
+                              geometry_out.stop_loss_price, point_size, trade_tick_size,
+                              stops_level_points, freeze_level_points, admission))
   {
     geometry_out.invalid_reason = "MINIMUM_RISK_DISTANCE_FAILED";
     return false;
   }
-  geometry_out.distance_eligible =
-    geometry_out.normalized_risk_distance_points + 1e-7 >=
-    geometry_out.minimum_risk_distance_points;
+  geometry_out.minimum_risk_distance_points = admission.minimum_price / point_size;
+  geometry_out.distance_eligible = admission.eligible;
   geometry_out.geometry_equivalence_id =
     PivotTrialGeometryEquivalenceId(origin_id,
                                     direction,

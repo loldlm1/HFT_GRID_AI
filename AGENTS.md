@@ -5,8 +5,8 @@ Candle visual review is deferred.
 
 ## Start Here
 
-Pivot `2.00` / Candle `2.10`, schema `1`.
-Engines: `PIVOT_MACRO_V1` and `CANDLE_PATTERN_ATR_V3`.
+Pivot/Candle `2.10`, schema `1`.
+Engines: `PIVOT_MACRO_V2` and `CANDLE_PATTERN_ATR_V3`.
 
 - [Status, plan and evidence](docs/README.md).
 - [Runtime contract](docs/architecture/market-data-broker-executor.md): read before MQL5 changes.
@@ -54,10 +54,10 @@ Engines: `PIVOT_MACRO_V1` and `CANDLE_PATTERN_ATR_V3`.
 - Process broker terminal transitions before discovery. Export,
   features, virtual state and offline models can never authorize, deny,
   delay, resize, duplicate, close or modify the real broker order.
-- Pivot: only structural Macro 1R may `OrderSend`, one FOK per consumed origin.
+- Pivot: only structural Macro 1R may open positions, one FOK per consumed origin.
   Freshly recheck session, symbol/hedging mode, permissions,
   quotes, geometry, stops/freeze, volume, margin/profit calculations and `OrderCheck`.
-  Use `HFT_GRID_AI_PIVOT_MACRO_V1` ownership; never adopt older-engine positions.
+  Use `HFT_GRID_AI_PIVOT_MACRO_V2` ownership; never adopt older-engine positions.
 - Immutable broker SL/TP; TP is one fresh-quote price-distance R from the
   structural stop. No trailing, break-even, partial close, resize or
   `TRADE_ACTION_SLTP`. Each accepted request owns one exact parity regardless of research eligibility.
@@ -67,9 +67,9 @@ Engines: `PIVOT_MACRO_V1` and `CANDLE_PATTERN_ATR_V3`.
   Preserve exact accepted-request parity.
   Invalid geometry/money, capacity refusal and run censors never become losses.
   H1/parity active-state cap remains 2048. Deep removal never changes broker policy.
-- Candle retains independent ATR13 shift-1 stops, both broker directions, one
-  confirmed-SL re-entry and per-entry Macro-duration expiry; shared capture is read-only.
-  Entry-only risk gate: `3*spread + max(stops,freeze)*point + tick`.
+- Both engines: entry-only risk >= `3*spread + max(stops,freeze)*point + tick`;
+  per-entry Macro expiry. Candle retains ATR13 shift-1, both directions and one
+  confirmed-SL re-entry. Shared capture stays read-only.
 - Tick/deal clocks retain actual milliseconds; native scheduling stays causal.
   Completed durations are exact; no-touch/ineligible/censored durations are null.
   Broker close time differs from later observation; retrospective facts are not

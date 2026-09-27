@@ -6,6 +6,7 @@
 
 struct BrokerExecutionCheck
 {
+  EntryAdmissionFacts entry_admission;
   string phase;
   int sequence;
   datetime broker_time;
@@ -77,6 +78,7 @@ struct BrokerExecutionCheck
 
   void Reset()
   {
+    ZeroMemory(entry_admission);
     phase = "";
     sequence = 0;
     broker_time = 0;
@@ -139,6 +141,7 @@ struct BrokerExecutionCheck
 
   void CopyFrom(const BrokerExecutionCheck &other)
   {
+    entry_admission = other.entry_admission;
     phase = other.phase;
     sequence = other.sequence;
     broker_time = other.broker_time;
@@ -276,6 +279,12 @@ struct PivotSignalExecution
   string position_comment;
   datetime broker_entry_time;
   long broker_entry_time_msc;
+  long deadline_time_msc;
+  bool close_pending;
+  ulong close_order_ticket;
+  long close_request_time_msc;
+  long next_close_request_time_msc;
+  string broker_close_reason;
   datetime close_time;
   long close_time_msc;
   datetime last_action_time;
@@ -347,6 +356,12 @@ struct PivotSignalExecution
     position_comment = "";
     broker_entry_time = 0;
     broker_entry_time_msc = 0;
+    deadline_time_msc = 0;
+    close_pending = false;
+    close_order_ticket = 0;
+    close_request_time_msc = 0;
+    next_close_request_time_msc = 0;
+    broker_close_reason = "";
     close_time = 0;
     close_time_msc = 0;
     last_action_time = 0;
@@ -410,6 +425,12 @@ struct PivotSignalExecution
     position_comment = other.position_comment;
     broker_entry_time = other.broker_entry_time;
     broker_entry_time_msc = other.broker_entry_time_msc;
+    deadline_time_msc = other.deadline_time_msc;
+    close_pending = other.close_pending;
+    close_order_ticket = other.close_order_ticket;
+    close_request_time_msc = other.close_request_time_msc;
+    next_close_request_time_msc = other.next_close_request_time_msc;
+    broker_close_reason = other.broker_close_reason;
     close_time = other.close_time;
     close_time_msc = other.close_time_msc;
     last_action_time = other.last_action_time;

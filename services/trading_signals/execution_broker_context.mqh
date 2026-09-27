@@ -268,6 +268,13 @@ bool CaptureBrokerExecutionCheck(const SignalTypes direction,
     ExecutionPriceDistancePoints(entry_price,
                                  stop_loss_price,
                                  check.point_size);
+  if(!CalculateEntryAdmission(direction == BULLISH ? 1 : -1, check.bid, check.ask,
+                              stop_loss_price, check.point_size, check.trade_tick_size,
+                              check.stops_distance_points, check.freeze_distance_points,
+                              check.entry_admission))
+    ExecutionCheckBlock(check, "entry_admission", "ENTRY_SPECIFICATION_INVALID");
+  else if(!check.entry_admission.eligible)
+    ExecutionCheckBlock(check, "entry_admission", "ENTRY_RISK_TOO_SMALL");
   check.reward_distance_points =
     ExecutionPriceDistancePoints(entry_price,
                                  take_profit_price,

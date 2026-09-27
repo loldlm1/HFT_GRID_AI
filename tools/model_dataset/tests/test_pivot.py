@@ -67,3 +67,30 @@ class PivotExpiryTests(RunFixtureCase):
 
     def test_timeout_requires_observed_executable_price(self):
         self.reject(lambda t: t['outcomes.tsv'][0].update(status='TIME_EXIT', exit_price=None))
+
+    def test_fill_deadline_does_not_move_parity_reference(self):
+        broker = self.tables['outcomes.tsv'][0]
+        broker.update(entry_time_msc=str(int(broker['entry_time_msc'])+100),
+                      deadline_time_msc=str(int(broker['deadline_time_msc'])+100), duration_ms='119900')
+        self.validate()
+        self.reject(lambda t: t['outcomes.tsv'][1].update(deadline_time_msc=broker['deadline_time_msc']))
+
+    def test_later_observation_keeps_actual_close_clock(self):
+        broker = self.tables['outcomes.tsv'][0]
+        broker['observed_time_msc']=str(int(broker['exit_time_msc'])+200)
+        self.validate()
+        self.reject(lambda t: t['outcomes.tsv'][0].update(observed_time_msc=str(int(broker['exit_time_msc'])-1)))
+
+    def test_sparse_quote_time_exit_has_no_threshold_or_binary_label(self):
+        outcome = self.tables['outcomes.tsv'][2]
+        at = int(outcome['deadline_time_msc'])+5000
+        outcome.update(status='TIME_EXIT', exit_time_msc=str(at), observed_time_msc=str(at),
+                       duration_ms='3605000', binary_label=None, binary_eligible='0',
+                       exclusion_reason='TIME_EXIT', observed_exit_bid=outcome['exit_price'],
+                       observed_exit_ask=str(Decimal(outcome['exit_price'])+Decimal('0.1')))
+        self.validate()
+        self.reject(lambda t: t['outcomes.tsv'][2].update(threshold_price=outcome['tp']))
+
+    def test_unentered_no_touch_cannot_claim_entered_slot(self):
+        trial=self.tables['trials.tsv'][-1];trial.update(eligibility='NOT_TRIGGERED', distance_eligible=None)
+        self.reject(lambda t: None)

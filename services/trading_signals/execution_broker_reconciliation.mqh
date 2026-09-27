@@ -5,7 +5,7 @@
 #define _SERVICES_TRADING_SIGNALS_EXECUTION_BROKER_RECONCILIATION_MQH_
 
 const int PIVOT_ENTRY_HISTORY_LOOKBACK_SECONDS = 3600;
-const int PIVOT_CLOSE_HISTORY_LOOKBACK_SECONDS = 86400 * 30;
+const int PIVOT_POSITION_HISTORY_CAP = 64;
 
 int CountOwnedPivotPositions()
 {
@@ -37,7 +37,7 @@ string PivotPositionComment(const PivotSignal &signal)
   string identity = signal.broker_signal_id;
   if(StringLen(identity) > 24)
     identity = StringSubstr(identity, StringLen(identity) - 24);
-  return "PM1_" + identity;
+  return "PM2_" + identity;
 }
 
 bool PivotPositionCommentMatches(const PivotSignal &signal)
@@ -198,6 +198,7 @@ void ApplySelectedPivotPositionFacts(PivotSignal &signal)
   signal.execution.broker_entry_time =
     (datetime)PositionGetInteger(POSITION_TIME);
   signal.execution.broker_entry_time_msc = PositionGetInteger(POSITION_TIME_MSC);
+  signal.execution.deadline_time_msc = signal.execution.broker_entry_time_msc + (long)g_pivot_macro_seconds * 1000;
   double point_size = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
   if(point_size > 0.0)
   {
@@ -351,6 +352,7 @@ bool ReconcilePivotEntryFromHistory(PivotSignal &signal)
   signal.execution.broker_entry_price = entry_price;
   signal.execution.broker_entry_time = entry_time;
   signal.execution.broker_entry_time_msc = entry_time_msc;
+  signal.execution.deadline_time_msc = entry_time_msc + (long)g_pivot_macro_seconds * 1000;
   signal.execution.broker_volume = entry_volume;
   if(PivotHistoryOrderIdentityMatches(signal, entry_order_ticket))
   {
@@ -423,11 +425,7 @@ bool ReconcilePivotCloseFromHistory(PivotSignal &signal)
   if(PivotPositionIdentifierStillOpen(signal))
     return false;
 
-  datetime from_time = signal.execution.broker_entry_time > 0
-                       ? signal.execution.broker_entry_time -
-                         PIVOT_CLOSE_HISTORY_LOOKBACK_SECONDS
-                       : TimeCurrent() - PIVOT_CLOSE_HISTORY_LOOKBACK_SECONDS;
-  if(!HistorySelect(from_time, TimeCurrent() + 60))
+  if(!HistorySelectByPosition(signal.execution.position_identifier))
     return false;
 
   double gross_profit = 0.0;
@@ -444,6 +442,12 @@ bool ReconcilePivotCloseFromHistory(PivotSignal &signal)
   bool close_reason_consistent = true;
   bool close_found = false;
   int total = HistoryDealsTotal();
+  if(total > PIVOT_POSITION_HISTORY_CAP)
+  {
+    ActivatePivotOwnershipEntryBlock("POSITION_HISTORY_CAP");
+    PivotDatasetFail("POSITION_HISTORY_CAP");
+    return false;
+  }
   for(int i = 0; i < total; i++)
   {
     ulong deal_ticket = HistoryDealGetTicket(i);
@@ -513,6 +517,9 @@ bool ReconcilePivotCloseFromHistory(PivotSignal &signal)
   string terminal_reason = close_reason_consistent
                            ? close_reason_token
                            : "MIXED";
+  signal.execution.broker_close_reason = terminal_reason;
+  if(signal.execution.deadline_time_msc > 0 && close_time_msc >= signal.execution.deadline_time_msc)
+    terminal_reason = "TIME_EXIT";
   double point_size = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
   if(point_size <= 0.0 || terminal_reason == "")
     return false;

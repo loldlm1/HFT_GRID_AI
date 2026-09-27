@@ -74,6 +74,10 @@ def validate_entry_admission(run):
               "normalized_risk_distance_points", "minimum_risk_distance_points", "distance_eligible")
     for trial in run.rows("trials.tsv"):
         admitted = trial["eligibility"] in {"ACCEPTED", "ELIGIBLE"}
+        if not admitted:
+            outcome = run.one("outcomes.tsv", "trial_id", trial["trial_id"])
+            require(trial["entry_time_msc"] is None and outcome["entry_time_msc"] is None and
+                    outcome["binary_eligible"] == "0", "Rejected entry counted as trade")
         if not admitted and trial["distance_eligible"] is None:
             require(trial["eligibility"] != "INELIGIBLE_DISTANCE", "Missing distance rejection evidence")
             continue  # Geometry/specification failures cannot invent a computed minimum.
@@ -99,9 +103,6 @@ def validate_entry_admission(run):
         require((trial["distance_eligible"] == "1") == allowed, "False distance eligibility")
         require(not admitted or allowed, "Admitted insufficient entry distance")
         require(trial["eligibility"] != "INELIGIBLE_DISTANCE" or not allowed, "False distance rejection")
-        if not admitted:
-            outcome = run.one("outcomes.tsv", "trial_id", trial["trial_id"])
-            require(outcome["entry_time_msc"] is None and outcome["binary_eligible"] == "0", "Rejected entry counted as trade")
 
 
 def validate_snapshot(run, row, macro, micro):

@@ -2,7 +2,7 @@
 
 **Generated:** 2026-09-27
 
-**Status:** Executing Sprint 2; Sprint 1 committed as `47556f9`.
+**Status:** Executing Sprint 3; S1/S2 committed as `47556f9` / `7a5607e`.
 
 **Execution authorization:** The user explicitly authorized execution of all five sprints on 2026-09-27, including the specified checks and sprint commits. Backend implementation and live rollout remain excluded.
 
@@ -838,3 +838,37 @@ Completion checklist:
   remain unavailable; deterministic reader cases/source review cover their stated
   invariants without claiming native injection. Human new-behavior acceptance is
   still pending; no deployment is included.
+
+### Sprint 3
+
+- Rollback parent: `7a5607e`; its full MQL closure and both binaries were copied
+  before edits to private `s3/rollback-parent/`. S2 rollback also has a fresh
+  independently pinned build from exact S1 Git sources in `s2/rollback-parent/`
+  and `s2/rollback-build/`; the original S1 current binary had been overwritten,
+  while the pre-S1 2.00 baseline binary remains retained separately.
+- Pivot is now 2.10 / V2. The pure helper gates fresh broker entries, structural
+  virtual entries and midpoint touches. New PM2 comments/magic never adopt PM1.
+  Parity copies accepted request proof. Rejected trials retain geometry/proof
+  but export no actual entry clock. Missing specification is a final declined
+  midpoint touch; facts are refreshed once per callback that activates midpoints.
+- Per-entry raw deadlines, TIME_EXIT and a lifecycle-only 1-second timer are
+  integrated with Reset/CopyFrom and all terminal mappings. Exact owned-ticket
+  FOK close requests reconcile first, retain one in-flight request and bounded
+  retries. Close history selects the owned position, at most 64 deals.
+- Initial 100 ms execution-delay checks exposed 43 expiry closes whose native
+  deal clock was 100 ms ahead of the last observed quote. A research-only queue
+  (cap 2048) defers delivery until a later real quote while immediately releasing
+  confirmed closed execution state. It never sends orders; missing observation
+  at run end fails research. The repaired case strictly validates and keeps
+  ordered broker results identical to the failing export case.
+- Final builds: `s3/final/build.json` for Candle and `s3/pivot-final/build.json`
+  for Pivot, MetaEditor 6230 AVX2, zero errors/warnings. 94 shared tests pass,
+  including fill/parity clock separation, sparse-quote expiry and observation lag.
+- Final H1/M3 week: 28 real time exits. Dense M6/M3 with 100 ms delay: 43 real
+  time exits, with unique close request position IDs. Strict intake and independent
+  feature audits pass. Pivot export-on/off broker rows match; Candle TSV/broker
+  regression matches S2. Receipts are in `s3/validation.json` and per-run files.
+- Native no-quote/refusal/uncertain-send injection is unavailable without forbidden
+  harnesses; source review covers ownership, terminal-order checks, no entry gate
+  on closes and failure retention. Full resource/performance and H2/H4/seasonal
+  coverage remain S4. Human acceptance remains pending.

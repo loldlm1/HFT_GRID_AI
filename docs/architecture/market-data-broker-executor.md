@@ -6,7 +6,7 @@ The Pivot EA owns causal Macro pivot discovery, eight virtual Macro lanes and on
 structural 1R broker lane. Shared capture supplies features and dataset facts;
 engine-specific code retains order ownership and lifecycle decisions.
 
-`Pivot_Macro.mq5` is version `2.00`, engine `PIVOT_MACRO_V1`, common schema `1`.
+`Pivot_Macro.mq5` is version `2.10`, engine `PIVOT_MACRO_V2`, common schema `1`.
 The [shared contract](model-feature-dataset.md) owns headers, features and clocks;
 the [current index](../README.md) owns source/compile pins and acceptance gates.
 
@@ -19,13 +19,13 @@ Candle and Pivot readers retain their original identities.
 ## Public Inputs
 
 The active [entry-quality/lifecycle plan](../../mql5-entry-quality-lifecycle-plan.md)
-registers new engine identities before changing the producers. The
+delivers both new engine identities. The
 [dataset contract](model-feature-dataset.md#registered-entry-quality-profiles)
 owns their admission formula and deadline precedence. Candle now enforces the
 fixed gate for fresh originals/re-entries and their virtual lanes. It retains
 actual fills separately and never applies the gate to an expiry close. Its new
-magic namespace is `0x434e4433` plus the symbol fingerprint. Pivot's switch to
-`PIVOT_MACRO_V2` / 2.10 remains the next sprint; its current behavior is unchanged.
+magic namespace is `0x434e4433` plus the symbol fingerprint. Pivot applies the
+same admission gate to fresh structural/broker entries and midpoint touches.
 
 | Group | Inputs and defaults |
 | --- | --- |
@@ -129,17 +129,37 @@ controller role; any surviving structural lane keeps the shared pending entry ar
 
 ## Broker Boundary
 
-Only the structural H1 `1R` lane may send. The fresh pre-send path rechecks
+Only the structural H1 `1R` lane may open a broker position. The fresh pre-send path rechecks
 session, symbol mode, hedging mode, permissions, Bid/Ask, stops/freeze, volume,
 FOK support, margin, and `OrderCheck`. Broker SL/TP are immutable after fill;
 there is no trailing, break-even, partial close, resize, or `TRADE_ACTION_SLTP`.
 
-Pivot derives symbol-scoped magic from `HFT_GRID_AI_PIVOT_MACRO_V1`; older-engine
+Pivot derives symbol-scoped magic from `HFT_GRID_AI_PIVOT_MACRO_V2`; older-engine
 positions are never adopted, closed, or modified. One accepted request creates
 one exact submitted-geometry parity shadow outside virtual/broker target cohorts.
-Its `distance_eligible` field reports the stricter research minimum as a fact;
-that field may be false for a broker-accepted request and does not veto its
-calibration shadow. Broker stops/freeze checks and immutable prices are unchanged.
+Its admission evidence copies the accepted request and cannot be independently
+re-vetoed by research. V2 admitted entries require the fixed three-spread minimum.
+V1's older independent research distance flag remains a historical contract.
+
+Each entered Pivot lane expires at its own raw entry milliseconds plus the native
+Macro duration. Broker deadlines use confirmed fills; parity uses the request;
+midpoints use their own later touch. Before the deadline TP/SL wins, while a close
+at or after it is TIME_EXIT with its original native reason retained separately.
+One-second timer callbacks perform lifecycle work only, without discovery, new
+midpoint activation or feature capture. No fresh quote means no invented exit.
+
+Expiry reconciles before sending a ticket-bound FOK close. One request remains
+in flight until its terminal order/deal is known; definitive refusals retry no
+more than once per raw second, and 30 seconds of unresolved ownership latch a
+diagnostic. Close requests do not run entry admission or change original SL/TP.
+Close reconciliation selects the owned position's history, capped at 64 deals.
+New entry state, close ownership and research delivery remain independent.
+
+A delayed close can precede the next observed quote. A research-only queue holds
+up to 2048 immutable closed records until that quote reaches the deal clock;
+execution releases the confirmed closed position immediately. The queue performs
+no orders. An unavailable observation at run end fails research explicitly.
+It never backdates observation or changes actual close/duration facts.
 
 Capture and freshly recheck point/trade tick, spread, volume min/max/step,
 requested and downward-normalized volume, free margin, profit/margin calculation
