@@ -1,13 +1,13 @@
 # Current Project State
 
-Updated 2026-09-27. Both EAs are `2.00`, common schema `1`: Pivot
-`PIVOT_MACRO_V1` and Candle `CANDLE_PATTERN_ATR_V2`.
+Updated 2026-09-27. Common schema `1`: Pivot `2.00` / `PIVOT_MACRO_V1`;
+Candle `2.10` / `CANDLE_PATTERN_ATR_V3`.
 This index owns changing status; guides own procedures and dated evidence keeps
 its original results.
 
 The [entry-quality and lifecycle plan](../mql5-entry-quality-lifecycle-plan.md)
-is active at Sprint 1. New reader profiles are registered; both producers
-still use their existing 2.00 policies. Baselines and execution receipts live in
+is active at Sprint 2, following Sprint 1 commit `47556f9`. Candle now applies
+the entry-only spread gate; Pivot's new policy is next. Baselines and execution receipts live in
 ignored `.codex-artifacts/entry-quality-lifecycle/`. The user authorized all five
 sprints; backend implementation and live rollout remain excluded.
 Sprint 1 passes 86 shared Python tests, generated-header checks, four strict native
@@ -16,6 +16,12 @@ for both old profiles. Baseline/current EAs compile at build 6230 AVX2 with zero
 errors/warnings. The native fallback uses command-file quoting and `/avx2` because
 the compile MCP is unavailable. Tester catalog refresh is required after CLI
 compilation; hidden artifact folders are excluded from its program catalog.
+Sprint 2 passes 90 shared tests, both AVX2 compiles, four strict native exports,
+unchanged Pivot dataset/broker comparison, exact Candle export-on/off broker
+results, independent features and disposable reused-ID refusal. The H1 week
+records 15 accepted / 1,065 distance-rejected Candle broker attempts; the dense
+M6 case records 55 real expiry closes. Evidence is under private `s2/`.
+No human acceptance of the new trading behavior or live rollout is claimed.
 
 All five prior runtime optimization sprints are committed through `8cfb9dc`.
 Start a new thread from this index, the

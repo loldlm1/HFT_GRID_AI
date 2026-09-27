@@ -69,16 +69,23 @@ bool CandleGeometry(const MqlTick &tick, const int direction, const double atr,
   return ModelNumberValid(sl) && ModelNumberValid(tp) && sl > 0.0 && tp > 0.0 && risk > 0.0;
 }
 
-string CandleStops(const MqlTick &tick, const int direction, const double sl, const double tp)
+string CandleStops(const MqlTick &tick, const int direction, const double sl, const double tp,
+                    EntryAdmissionFacts &admission)
 {
   long stops = 0, freeze = 0;
+  double point = 0.0, tick_size = 0.0;
+  ZeroMemory(admission);
   if(!SymbolInfoInteger(_Symbol, SYMBOL_TRADE_STOPS_LEVEL, stops) ||
      !SymbolInfoInteger(_Symbol, SYMBOL_TRADE_FREEZE_LEVEL, freeze) ||
-     stops < 0 || freeze < 0 || _Point <= 0.0) return "STOPS_SPECIFICATION";
+     !SymbolInfoDouble(_Symbol, SYMBOL_POINT, point) ||
+     !SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_SIZE, tick_size) ||
+     !CalculateEntryAdmission(direction, tick.bid, tick.ask, sl, point, tick_size,
+                              (double)stops, (double)freeze, admission)) return "STOPS_SPECIFICATION";
+  if(!admission.eligible) return "ENTRY_RISK_TOO_SMALL";
   double exit_quote = direction > 0 ? tick.bid : tick.ask;
   double sl_gap = direction * (exit_quote - sl);
   double tp_gap = direction * (tp - exit_quote);
-  double minimum = MathMax((double)stops, (double)freeze) * _Point;
+  double minimum = MathMax((double)stops, (double)freeze) * point;
   if(sl_gap <= 0.0 || tp_gap <= 0.0 || sl_gap < minimum || tp_gap < minimum) return "ATR_STOPS_TOO_CLOSE";
   return "OK";
 }
@@ -100,7 +107,8 @@ void CandleSubmit(const CandleAttempt &attempt, const MqlTick &decision_tick, co
   string volume_reason = "INVALID_VOLUME";
   bool volume_ok = geometry && CandleVolume(attempt.direction, entry, sl, tp,
                                             requested_volume, volume, stop_profit, volume_reason);
-  string distance_reason = geometry ? CandleStops(tick, attempt.direction, sl, tp) : "INVALID_GEOMETRY";
+  EntryAdmissionFacts admission = {};
+  string distance_reason = geometry ? CandleStops(tick, attempt.direction, sl, tp, admission) : "INVALID_GEOMETRY";
   string reason = !fresh ? "QUOTE_UNAVAILABLE" : (!geometry ? "INVALID_GEOMETRY" :
                    (!volume_ok ? volume_reason : CandlePermission(tick, attempt.direction, false)));
   if(reason == "OK") reason = distance_reason;
@@ -125,7 +133,7 @@ void CandleSubmit(const CandleAttempt &attempt, const MqlTick &decision_tick, co
   request.tp = tp;
   request.type_filling = ORDER_FILLING_FOK;
   request.deviation = 10;
-  request.comment = "CANDLE_PATTERN_ATR_V2";
+  request.comment = "CANDLE_PATTERN_ATR_V3";
   if(reason == "OK" && (!OrderCheck(request, check) ||
                         (check.retcode != 0 && check.retcode != TRADE_RETCODE_DONE))) reason = "ORDER_CHECK";
   bool allowed = reason == "OK";
@@ -168,13 +176,14 @@ void CandleSubmit(const CandleAttempt &attempt, const MqlTick &decision_tick, co
     }
   }
   CandleDatasetCheck(attempt, "ENTRY", tick, allowed, reason, volume, entry, sl, tp, margin, stop_profit,
-                 check.retcode, result.retcode, result.order, result.deal, 0);
-  CandleDatasetTrial(attempt, "BROKER", 1, tick.time_msc, entry, sl, tp, volume, accepted ? "ACCEPTED" : "REJECTED");
+                 check.retcode, result.retcode, result.order, result.deal, 0, admission);
+  CandleDatasetTrial(attempt, "BROKER", 1, tick.time_msc, entry, sl, tp, volume,
+                     accepted ? "ACCEPTED" : "REJECTED", admission, reason);
   if(!accepted)
     CandleDatasetOutcome(attempt.id, "BROKER", 1, attempt.direction, "REJECTED", reason,
                   0, 0, 0, tick.time_msc, EMPTY_VALUE, EMPTY_VALUE, sl, tp, volume,
                   EMPTY_VALUE, EMPTY_VALUE, 0);
-  string virtual_status = !geometry ? "INELIGIBLE_GEOMETRY" :
+  string virtual_status = !geometry || !admission.valid ? "INELIGIBLE_GEOMETRY" :
                           (distance_reason != "OK" ? "INELIGIBLE_DISTANCE" :
                           (!volume_ok || !ModelNumberValid(stop_profit) || stop_profit >= 0.0 ?
                            "INELIGIBLE_MONEY" : "ELIGIBLE"));
@@ -190,9 +199,10 @@ void CandleSubmit(const CandleAttempt &attempt, const MqlTick &decision_tick, co
       double profit = CandleProfit(attempt.direction, volume, entry, virtual_tp);
       if(!ModelNumberValid(profit) || profit <= 0.0) status = "INELIGIBLE_MONEY";
     }
-    CandleVirtualStart(attempt, "VIRTUAL", rr, tick.time_msc, entry, sl, virtual_tp, volume, status);
+    CandleVirtualStart(attempt, "VIRTUAL", rr, tick.time_msc, entry, sl, virtual_tp, volume, status,
+                        admission, distance_reason != "OK" ? distance_reason : status);
   }
-  if(accepted) CandleVirtualStart(attempt, "PARITY", 1, tick.time_msc, entry, sl, tp, volume, "ELIGIBLE");
+  if(accepted) CandleVirtualStart(attempt, "PARITY", 1, tick.time_msc, entry, sl, tp, volume, "ELIGIBLE", admission, "");
   if(accepted && result.retcode == TRADE_RETCODE_DONE_PARTIAL) ModelFail("UNEXPECTED_PARTIAL_FOK");
 }
 
@@ -374,9 +384,10 @@ void CandleRequestExpiry(CandleBrokerRecord &record, const MqlTick &tick)
       ModelFail("CLOSE_OWNERSHIP_UNRESOLVED");
     }
   }
+  EntryAdmissionFacts no_entry_admission = {};
   CandleDatasetCheck(record.attempt, "TIME_EXIT", fresh, allowed, reason, volume, request.price,
                  record.sl, record.tp, EMPTY_VALUE, EMPTY_VALUE, check.retcode, result.retcode,
-                 result.order, result.deal, record.position_id);
+                 result.order, result.deal, record.position_id, no_entry_admission);
 }
 
 #endif

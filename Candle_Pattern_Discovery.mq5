@@ -1,8 +1,9 @@
 #property strict
-#property version "2.00"
+#property version "2.10"
 #property description "Independent Harami/Engulfing discovery with ATR risk and Macro-duration exits."
 
 #include "services/core/enums.mqh"
+#include "services/utils/broker_constraints_helper.mqh"
 #include "services/candle_pattern/config.mqh"
 #include "services/trading_signals/execution_lot_math.mqh"
 #include "services/model_features.mqh"
@@ -13,7 +14,7 @@
 
 int OnInit()
 {
-  g_candle_magic = (long)(0x43414e4400000000 | (ModelFingerprint(0xcbf29ce484222325, _Symbol) & 0x00000000ffffffff));
+  g_candle_magic = (long)(0x434e443300000000 | (ModelFingerprint(0xcbf29ce484222325, _Symbol) & 0x00000000ffffffff));
   g_macro_seconds = PeriodSeconds(Macro_Timeframe);
   g_micro_seconds = PeriodSeconds(Micro_Timeframe);
   if(!CandleTimeframeSupported(Macro_Timeframe) || !CandleTimeframeSupported(Micro_Timeframe) ||

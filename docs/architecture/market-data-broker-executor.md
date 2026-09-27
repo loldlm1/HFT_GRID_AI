@@ -10,8 +10,8 @@ engine-specific code retains order ownership and lifecycle decisions.
 The [shared contract](model-feature-dataset.md) owns headers, features and clocks;
 the [current index](../README.md) owns source/compile pins and acceptance gates.
 
-The separate `Candle_Pattern_Discovery.mq5` is version `2.00`, engine
-`CANDLE_PATTERN_ATR_V2`. It shares capture services but retains Micro patterns,
+The separate `Candle_Pattern_Discovery.mq5` is version `2.10`, engine
+`CANDLE_PATTERN_ATR_V3`. It shares capture services but retains Micro patterns,
 ATR stops, both broker directions, one confirmed-SL re-entry and per-entry
 Macro-duration expiry. Its engine policy is in the shared contract. Historical
 Candle and Pivot readers retain their original identities.
@@ -21,10 +21,11 @@ Candle and Pivot readers retain their original identities.
 The active [entry-quality/lifecycle plan](../../mql5-entry-quality-lifecycle-plan.md)
 registers new engine identities before changing the producers. The
 [dataset contract](model-feature-dataset.md#registered-entry-quality-profiles)
-owns their admission formula and deadline precedence. Integration will move
-Candle to `CANDLE_PATTERN_ATR_V3` and Pivot to `PIVOT_MACRO_V2`, each at 2.10,
-with separate new broker ownership. Current 2.00 behavior remains until each
-complete engine switch is committed.
+owns their admission formula and deadline precedence. Candle now enforces the
+fixed gate for fresh originals/re-entries and their virtual lanes. It retains
+actual fills separately and never applies the gate to an expiry close. Its new
+magic namespace is `0x434e4433` plus the symbol fingerprint. Pivot's switch to
+`PIVOT_MACRO_V2` / 2.10 remains the next sprint; its current behavior is unchanged.
 
 | Group | Inputs and defaults |
 | --- | --- |

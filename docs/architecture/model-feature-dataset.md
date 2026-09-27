@@ -12,7 +12,7 @@ facts through shared data services. Feature availability never controls orders.
 
 - Family: `MQL5_MODEL_FEATURES`; core schema: `1`.
 - Base features: `macro_micro_standard_v1`; extension schema: `1`.
-- Engines: `PIVOT_MACRO_V1`, `CANDLE_PATTERN_ATR_V2`; EA versions: `2.00`.
+- Current engines: `PIVOT_MACRO_V1` (2.00), `CANDLE_PATTERN_ATR_V3` (2.10).
 - Storage: `Common/Files/MQL5ModelDatasetV1/runs/<run_id>/`.
 - Default roles: Macro H1 and Micro M3, supported native periods with
   `Micro < Macro`. Fixed M1 structure is a separate declared feature source.
@@ -141,7 +141,8 @@ Required manifest keys (no duplicate or undeclared keys) are `dataset_family`,
 An unknown canonical symbol is the explicit value UNMAPPED, not an inferred name.
 Native broker/feed strings must not include account identifiers.
 
-Outcome policy is `PIVOT_MACRO_OUTCOME_V1` or `CANDLE_ATR_OUTCOME_V1` respectively.
+Current outcome policies are `PIVOT_MACRO_OUTCOME_V1` and `CANDLE_ATR_OUTCOME_V2`;
+historical tuples remain registered exactly as listed above.
 Structure policy is `STOCHASTIC_CLOSE_M1_V1` with 4096/256 warmup/catch-up bounds.
 Producer measurements and raw source receipts identify available precision;
 unknown source provenance is recorded, never silently treated as verified Exness.
@@ -834,8 +835,12 @@ closure, virtual R2/R3 and exact R1 parity. Execution ATR remains independent.
 The decision snapshot freezes before submission. Submission refreshes the quote;
 the trial declaration and entry check share that refreshed timestamp, which can
 follow the decision time. Actual broker fills retain their separate deal time.
-Symbol-scoped ownership uses the `0x43414e44` namespace plus the low 32 bits of
-the UTF-8 symbol FNV-1a fingerprint; the entry comment is `CANDLE_PATTERN_ATR_V2`.
+V3 symbol-scoped ownership uses `0x434e4433` plus the low 32 bits of the UTF-8
+symbol FNV-1a fingerprint; the broker-safe entry comment is `CANDLE_PATTERN_ATR_V3`.
+The old V2 namespace `0x43414e44` remains historical and is never adopted.
+V3 admission proof is captured once from the fresh request quote/specification
+and reused for broker/virtual/parity export. Local transition checks fail research
+on contradictory admitted facts; they cannot undo or change a broker request.
 
 Shared research indicators are cached once: Bands, Stochastic and ATR for each
 role, plus M1 Stochastic when Micro is not M1. Candle owns its separate execution

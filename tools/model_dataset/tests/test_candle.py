@@ -56,6 +56,8 @@ class CandleAdmissionTests(RunFixtureCase):
         # makes the independently calculated minimum exactly 1.00.
         for trial in self.tables['trials.tsv']:
             trial.update(stops_level_points='10', freeze_level_points='69', minimum_risk_distance_points='100')
+        for check in self.tables['execution_checks.tsv']:
+            check.update(stops_distance_points='10', freeze_distance_points='69')
         self.validate()
         for trial in self.tables['trials.tsv']:
             trial.update(freeze_level_points='70', minimum_risk_distance_points='101')
@@ -68,6 +70,40 @@ class CandleAdmissionTests(RunFixtureCase):
 
     def test_missing_admission_fact_fails(self):
         self.reject(lambda t: t['trials.tsv'][0].update(freeze_level_points=None))
+
+    def test_request_cannot_recapture_other_spread(self):
+        self.reject(lambda t: t['execution_checks.tsv'][0].update(ask='101.11'))
+
+    def test_tick_size_is_not_assumed_to_be_point(self):
+        for record in self.tables['run_manifest.tsv']:
+            if record['key']=='tick_size': record['value']='0.1'
+        for snapshot in self.tables['feature_snapshots.tsv']: snapshot['tick_size']='0.1'
+        for trial in self.tables['trials.tsv']:trial.update(trade_tick_size='0.1', minimum_risk_distance_points='40')
+        for check in self.tables['execution_checks.tsv']:check['trade_tick_size']='0.1'
+        self.validate()
+
+    def test_zero_spread_still_needs_one_tick(self):
+        for trial in self.tables['trials.tsv']:
+            trial.update(entry_bid=trial['entry_price'], entry_ask=trial['entry_price'], spread_points='0', minimum_risk_distance_points='1')
+        for check in self.tables['execution_checks.tsv']:
+            check.update(bid=check['entry_price'], ask=check['entry_price'], spread_points='0')
+        self.validate()
+
+    def test_distance_rejections_have_no_entry_or_binary_target(self):
+        self.tables['trials.tsv']=[t for t in self.tables['trials.tsv'] if t['role']!='PARITY']
+        self.tables['outcomes.tsv']=[o for o in self.tables['outcomes.tsv'] if o['role']!='PARITY']
+        for t in self.tables['trials.tsv']:
+            t.update(stops_level_points='100', minimum_risk_distance_points='131', distance_eligible='0',
+                     eligibility='REJECTED' if t['role']=='BROKER' else 'INELIGIBLE_DISTANCE', entry_time_msc=None)
+        for o in self.tables['outcomes.tsv']:
+            o.update(status='REJECTED' if o['role']=='BROKER' else 'INELIGIBLE_DISTANCE',
+                     entry_time_msc=None, deadline_time_msc=None, exit_time_msc=None, duration_ms=None,
+                     entry_price=None, exit_price=None, binary_eligible='0', binary_label=None,
+                     gross_profit=None, costs=None, net_profit=None, gross_r=None, position_id=None, fill_deviation_points=None)
+        for c in self.tables['execution_checks.tsv']:
+            c.update(allowed='0', reason='ENTRY_RISK_TOO_SMALL', stops_distance_points='100', send_retcode='0', order_ticket=None, deal_ticket=None)
+        self.validate()
+        self.reject(lambda t: t['outcomes.tsv'][0].update(binary_eligible='1', binary_label='0'))
 
     def test_no_retroactive_fill_gate(self):
         outcome = self.tables['outcomes.tsv'][0]

@@ -8,7 +8,7 @@ bool CandleDatasetInitialize()
   ModelCaptureConfig config;
   config.enabled = Enable_Signal_Feature_Export;
   config.run_id = Signal_Feature_Run_Id;
-  config.engine = "CANDLE_PATTERN_ATR_V2";
+  config.engine = "CANDLE_PATTERN_ATR_V3";
   config.symbol = _Symbol;
   config.macro = Macro_Timeframe;
   config.micro = Micro_Timeframe;
@@ -23,9 +23,12 @@ bool CandleDatasetInitialize()
 
 void CandleDatasetTrial(const CandleAttempt &attempt, const string role, const int rr,
                          const long reference_time, const double entry, const double sl,
-                         const double tp, const double volume, const string eligibility)
+                         const double tp, const double volume, const string eligibility,
+                         const EntryAdmissionFacts &admission, const string reason)
 {
   if(!ModelReady()) return;
+  if((eligibility == "ACCEPTED" || eligibility == "ELIGIBLE") &&
+     (!admission.valid || !admission.eligible)) { ModelFail("CANDLE_ADMISSION_INVARIANT"); return; }
   ModelRow row;
   row.Init(MODEL_TRIALS);
   row.Set(MODEL_F_TRIALS_TRIAL_ID, CandleTrialId(attempt.id, role, rr));
@@ -41,7 +44,21 @@ void CandleDatasetTrial(const CandleAttempt &attempt, const string role, const i
   row.Number(MODEL_F_TRIALS_TP, tp);
   row.Number(MODEL_F_TRIALS_VOLUME, volume);
   row.Set(MODEL_F_TRIALS_ELIGIBILITY, eligibility);
-  if(eligibility != "ELIGIBLE" && eligibility != "ACCEPTED") row.Set(MODEL_F_TRIALS_REASON, eligibility);
+  if(eligibility != "ELIGIBLE" && eligibility != "ACCEPTED") row.Set(MODEL_F_TRIALS_REASON, reason == "" ? eligibility : reason);
+  if(admission.valid)
+  {
+    row.Number(MODEL_F_TRIALS_ENTRY_BID, admission.bid);
+    row.Number(MODEL_F_TRIALS_ENTRY_ASK, admission.ask);
+    row.Number(MODEL_F_TRIALS_POINT_SIZE, admission.point);
+    row.Number(MODEL_F_TRIALS_TRADE_TICK_SIZE, admission.tick_size);
+    row.Number(MODEL_F_TRIALS_SPREAD_POINTS, (admission.ask - admission.bid) / admission.point);
+    row.Number(MODEL_F_TRIALS_STOPS_LEVEL_POINTS, admission.stops_points);
+    row.Number(MODEL_F_TRIALS_FREEZE_LEVEL_POINTS, admission.freeze_points);
+    row.Number(MODEL_F_TRIALS_NORMALIZED_RISK_DISTANCE_PRICE, admission.risk_price);
+    row.Number(MODEL_F_TRIALS_NORMALIZED_RISK_DISTANCE_POINTS, admission.risk_price / admission.point);
+    row.Number(MODEL_F_TRIALS_MINIMUM_RISK_DISTANCE_POINTS, admission.minimum_price / admission.point);
+    row.Flag(MODEL_F_TRIALS_DISTANCE_ELIGIBLE, admission.eligible);
+  }
   if(!ModelWrite(row) && !g_model_failed) ModelFail("CANDLE_TRIAL_WRITE");
 }
 
@@ -95,7 +112,8 @@ void CandleDatasetCheck(const CandleAttempt &attempt, const string action, const
                         const bool allowed, const string reason, const double volume,
                         const double entry, const double sl, const double tp,
                         const double margin, const double stop_profit, const uint check_retcode,
-                        const uint send_retcode, const ulong order, const ulong deal, const ulong position_id)
+                        const uint send_retcode, const ulong order, const ulong deal, const ulong position_id,
+                        const EntryAdmissionFacts &admission)
 {
   if(ModelReady())
   {
@@ -110,6 +128,15 @@ void CandleDatasetCheck(const CandleAttempt &attempt, const string action, const
     row.Set(MODEL_F_EXECUTION_CHECKS_REASON, reason);
     row.Number(MODEL_F_EXECUTION_CHECKS_BID, tick.bid);
     row.Number(MODEL_F_EXECUTION_CHECKS_ASK, tick.ask);
+    if(action == "ENTRY" && admission.valid)
+    {
+      row.Number(MODEL_F_EXECUTION_CHECKS_POINT_SIZE, admission.point);
+      row.Number(MODEL_F_EXECUTION_CHECKS_TRADE_TICK_SIZE, admission.tick_size);
+      row.Number(MODEL_F_EXECUTION_CHECKS_SPREAD_POINTS, (admission.ask - admission.bid) / admission.point);
+      row.Number(MODEL_F_EXECUTION_CHECKS_STOPS_DISTANCE_POINTS, admission.stops_points);
+      row.Number(MODEL_F_EXECUTION_CHECKS_FREEZE_DISTANCE_POINTS, admission.freeze_points);
+      row.Number(MODEL_F_EXECUTION_CHECKS_RISK_DISTANCE_POINTS, admission.risk_price / admission.point);
+    }
     row.Number(MODEL_F_EXECUTION_CHECKS_VOLUME, volume);
     row.Number(MODEL_F_EXECUTION_CHECKS_ENTRY_PRICE, entry);
     row.Number(MODEL_F_EXECUTION_CHECKS_SL, sl);

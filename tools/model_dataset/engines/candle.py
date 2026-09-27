@@ -57,6 +57,14 @@ def validate(run):
         check = checks[0]
         require((check["reason"] == "ACCEPTED") == accepted, "Broker admission/check mismatch")
         require(all(check[k] == broker[k] for k in ("entry_price", "sl", "tp", "volume")), "Request geometry mismatch")
+        if run.profile.entry_policy != "LEGACY" and broker["distance_eligible"] is not None:
+            for request_key, trial_key in (("bid", "entry_bid"), ("ask", "entry_ask"),
+                    ("point_size", "point_size"), ("trade_tick_size", "trade_tick_size"),
+                    ("spread_points", "spread_points"), ("stops_distance_points", "stops_level_points"),
+                    ("freeze_distance_points", "freeze_level_points"),
+                    ("risk_distance_points", "normalized_risk_distance_points")):
+                require(number(check[request_key]) == number(broker[trial_key]), "Candle request admission proof mismatch")
+            require(check["allowed"] != "1" or broker["distance_eligible"] == "1", "Insufficient distance authorized send")
         if accepted:
             require(check["allowed"] == "1" and check["send_retcode"] in {"10008", "10009"} and (check["order_ticket"] or check["deal_ticket"]), "Unconfirmed accepted request")
         require(integer(check["time_msc"]) >= integer(attempt["decision_time_msc"]), "Request precedes decision")
@@ -68,6 +76,9 @@ def validate(run):
                 require(integer(t["deadline_time_msc"]) == integer(t["declared_time_msc"]) + macro_ms, "Reference deadline mismatch")
             if t["role"] != "BROKER":
                 require(all(t[k] == broker[k] for k in ("entry_price", "sl", "volume", "declared_time_msc")), "Shared Candle geometry changed")
+                if run.profile.entry_policy != "LEGACY":
+                    require(all(t[k] == broker[k] for k in ("entry_bid", "entry_ask", "stops_level_points",
+                        "freeze_level_points", "distance_eligible", "minimum_risk_distance_points")), "Candle admission recaptured")
             if t["eligibility"] in {"ELIGIBLE", "ACCEPTED"}:
                 direction = 1 if attempt["direction"] == "BUY" else -1
                 risk = direction * (number(t["entry_price"]) - number(t["sl"]))

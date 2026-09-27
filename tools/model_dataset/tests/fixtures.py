@@ -165,6 +165,10 @@ def make_run(path, engine="CANDLE_PATTERN_ATR_V2", *, empty=False, session="FIXE
                    time_msc=NOW, sequence=4+index, allowed=1, reason="ACCEPTED", bid=bid, ask=ask,
                    volume="0.01", entry_price=origin_entry, sl=origin_sl, tp=origin_entry+direction*(direction*(origin_entry-origin_sl)),
                    margin=10, stop_profit=-1, check_retcode=0, send_retcode=10009, order_ticket=index+1, deal_ticket=index+1)
+            if profile.entry_policy != "LEGACY":
+                tables["execution_checks.tsv"][-1].update(point_size="0.01", trade_tick_size="0.01",
+                    spread_points="10", stops_distance_points="0", freeze_distance_points="0",
+                    risk_distance_points=str(direction*(origin_entry-origin_sl)/Decimal("0.01")))
     seal = dict.fromkeys(SUMMARY_KEYS, "0")
     seal.update(export_status="OK",completion_status="NATURAL",failure="NONE",broker_peak="2" if candle else "1",
                 virtual_peak="6" if candle else "9",handle_peak="7",buffer_peak="1",feature_gap_count="0",

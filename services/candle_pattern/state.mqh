@@ -80,7 +80,8 @@ double CandleProfit(const int direction, const double volume, const double entry
 
 void CandleVirtualStart(const CandleAttempt &attempt, const string lane, const int rr,
                         const long time, const double entry, const double sl,
-                        const double tp, const double volume, const string eligibility)
+                        const double tp, const double volume, const string eligibility,
+                        const EntryAdmissionFacts &admission, const string reason)
 {
   if(!g_model_open || g_model_failed) return;
   string status = eligibility;
@@ -92,7 +93,7 @@ void CandleVirtualStart(const CandleAttempt &attempt, const string lane, const i
     if(slot < 0 && g_candle_virtual_extent < CANDLE_VIRTUAL_CAP) slot = g_candle_virtual_extent++;
     if(slot < 0) status = "CAPACITY_REJECTED";
   }
-  CandleDatasetTrial(attempt, lane, rr, time, entry, sl, tp, volume, status);
+  CandleDatasetTrial(attempt, lane, rr, time, entry, sl, tp, volume, status, admission, reason);
   if(slot < 0)
   {
     CandleDatasetOutcome(attempt.id, lane, rr, attempt.direction, status, "", 0, 0, 0,

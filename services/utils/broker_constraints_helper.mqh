@@ -77,6 +77,50 @@ bool RefreshSymbolTradingConstraints(const string symbol, SymbolTradingConstrain
   return spec_loaded;
 }
 
+// Immutable, entry-only execution facts; no research or account-state dependency.
+struct EntryAdmissionFacts
+{
+  bool valid;
+  bool eligible;
+  double bid;
+  double ask;
+  double point;
+  double tick_size;
+  double stops_points;
+  double freeze_points;
+  double risk_price;
+  double minimum_price;
+};
+
+bool CalculateEntryAdmission(const int direction, const double bid, const double ask,
+                             const double sl, const double point, const double tick_size,
+                             const double stops_points, const double freeze_points,
+                             EntryAdmissionFacts &facts)
+{
+  ZeroMemory(facts);
+  if((direction != 1 && direction != -1) || !MathIsValidNumber(bid) || bid <= 0.0 ||
+     !MathIsValidNumber(ask) || ask < bid || ask == EMPTY_VALUE ||
+     !MathIsValidNumber(sl) || sl <= 0.0 || sl == EMPTY_VALUE ||
+     !MathIsValidNumber(point) || point <= 0.0 || point == EMPTY_VALUE ||
+     !MathIsValidNumber(tick_size) || tick_size <= 0.0 || tick_size == EMPTY_VALUE ||
+     !MathIsValidNumber(stops_points) || stops_points < 0.0 || stops_points == EMPTY_VALUE ||
+     !MathIsValidNumber(freeze_points) || freeze_points < 0.0 || freeze_points == EMPTY_VALUE)
+    return false;
+  facts.bid = bid;
+  facts.ask = ask;
+  facts.point = point;
+  facts.tick_size = tick_size;
+  facts.stops_points = stops_points;
+  facts.freeze_points = freeze_points;
+  facts.risk_price = direction * ((direction > 0 ? ask : bid) - sl);
+  facts.minimum_price = 3.0 * (ask - bid) + MathMax(stops_points, freeze_points) * point + tick_size;
+  facts.valid = MathIsValidNumber(facts.risk_price) && MathIsValidNumber(facts.minimum_price) &&
+                facts.minimum_price > 0.0 && facts.minimum_price != EMPTY_VALUE;
+  facts.eligible = facts.valid && facts.risk_price > 0.0 &&
+                   facts.risk_price + tick_size * 0.000001 >= facts.minimum_price;
+  return facts.valid;
+}
+
 bool CalculateStrictRiskDistancePoints(const double spread_points,
                                        const double point_size,
                                        const double trade_tick_size,

@@ -2,7 +2,7 @@
 
 **Generated:** 2026-09-27
 
-**Status:** Executing Sprint 1; required discussion decisions are resolved.
+**Status:** Executing Sprint 2; Sprint 1 committed as `47556f9`.
 
 **Execution authorization:** The user explicitly authorized execution of all five sprints on 2026-09-27, including the specified checks and sprint commits. Backend implementation and live rollout remain excluded.
 
@@ -809,3 +809,32 @@ Completion checklist:
 - Native waiter owns background checks; one workload at a time with durable job
   receipts. No model polling loop was used. Human new-behavior acceptance remains
   a later gate; Sprint 1 has no changed trading behavior.
+
+### Sprint 2
+
+- Rollback parent: `47556f9`; restore the corresponding S1 Candle EX5 on revert.
+  Candle is now 2.10 / V3 with execution-owned fixed admission and complete trial/
+  request proof; existing ATR, re-entry and deadline processing remain unchanged.
+- Ownership uses new magic prefix `0x434e4433` and the bounded broker comment
+  `CANDLE_PATTERN_ATR_V3`. The longer descriptive namespace need not be sent as
+  a broker comment; magic and symbol establish ownership, never the old prefix.
+- Both EAs compile on 6230 AVX2 with zero errors/warnings (`s2/build.json`).
+  All 90 shared tests pass. An initial new fixture comparison incorrectly compared
+  equivalent Decimal spellings as strings; numeric equality corrected it. The
+  first 2-day M6 native case had no admitted entries and did not prove expiry.
+- H1 week: 1,080 attempts, 15 broker admissions, 1,065 distance rejections;
+  both directions and ten re-entry attempts are observed. Dense 2015-08-24..26
+  M6/M3: 55 actual broker and parity time exits, 134 virtual time exits. All four
+  retained datasets strictly validate. Export-on/off ordered broker results
+  match; Pivot TSVs and broker results remain exact against S1.
+- Independent native feature audits pass for Candle H1/M6 and Pivot regression.
+  Partial feature readiness occurs without affecting execution. A disposable
+  existing run ID is refused, its sentinel remains unchanged and the tester logs
+  `RUN_ID_EXISTS`. Prior unchanged writer fault logic/evidence is retained.
+- `s2/validation.json`, strict per-run receipts, `features.json` and `refusal.txt`
+  hold counts/hashes. Include tracing and call-site review confirm the entry helper
+  never participates in expiry closes; parity receives the submitted proof.
+  Native invalid-specification, exact-equality and forced uncertain-send cases
+  remain unavailable; deterministic reader cases/source review cover their stated
+  invariants without claiming native injection. Human new-behavior acceptance is
+  still pending; no deployment is included.

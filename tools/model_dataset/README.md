@@ -1,7 +1,8 @@
 # Shared MQL5 Dataset Validation
 
 This local tool validates schema 1 of `MQL5_MODEL_FEATURES` for
-`PIVOT_MACRO_V1` and `CANDLE_PATTERN_ATR_V2`. The
+`PIVOT_MACRO_V1/V2` and `CANDLE_PATTERN_ATR_V2/V3`. Each exact engine/producer/
+outcome tuple selects its own admission and expiry requirements. The
 [producer contract](../../docs/architecture/model-feature-dataset.md) defines
 the features, fields, provenance and engine policies; the
 [project index](../../docs/README.md) owns implementation and native acceptance.

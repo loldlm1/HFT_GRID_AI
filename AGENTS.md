@@ -1,12 +1,12 @@
 # HFT Grid AI - Project Instructions
 
 Read the [project index](docs/README.md) first.
-Retain trading rules; Candle visual review is deferred.
+Candle visual review is deferred.
 
 ## Start Here
 
-Pivot/Candle EAs: `2.00`, common schema `1`, Macro/Micro shared capture.
-Engines: `PIVOT_MACRO_V1` and `CANDLE_PATTERN_ATR_V2`.
+Pivot `2.00` / Candle `2.10`, schema `1`.
+Engines: `PIVOT_MACRO_V1` and `CANDLE_PATTERN_ATR_V3`.
 
 - [Status, plan and evidence](docs/README.md).
 - [Runtime contract](docs/architecture/market-data-broker-executor.md): read before MQL5 changes.
@@ -69,6 +69,7 @@ Engines: `PIVOT_MACRO_V1` and `CANDLE_PATTERN_ATR_V2`.
   H1/parity active-state cap remains 2048. Deep removal never changes broker policy.
 - Candle retains independent ATR13 shift-1 stops, both broker directions, one
   confirmed-SL re-entry and per-entry Macro-duration expiry; shared capture is read-only.
+  Entry-only risk gate: `3*spread + max(stops,freeze)*point + tick`.
 - Tick/deal clocks retain actual milliseconds; native scheduling stays causal.
   Completed durations are exact; no-touch/ineligible/censored durations are null.
   Broker close time differs from later observation; retrospective facts are not
@@ -106,7 +107,7 @@ Every sprint: exact reference sweeps, include tracing, broker/research review,
 `git diff --check` and affected existing Python checks. No new MQL5 harnesses,
 test EAs/scripts, CI or test infrastructure. Reuse unchanged evidence; report unrun gates.
 
-New engines/features: [performance contract](docs/architecture/market-data-broker-executor.md#performance-contract).
+Engines/features: [performance contract](docs/architecture/market-data-broker-executor.md#performance-contract).
 Bound work/state, declare invalidation, reuse providers and prove exact behavior
 and measured release gains. Shared changes validate both engines.
 
