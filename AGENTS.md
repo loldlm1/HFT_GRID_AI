@@ -16,13 +16,13 @@ Engines: `PIVOT_MACRO_V2` and `CANDLE_PATTERN_ATR_V3`.
 
 ## Skills And Execution
 
-- `planner`: proposals/saved/sprint plans; native behavior for short chat plans.
-- `$codex-agentic-stack:on-demand-skills`: bounded search; one pinned MQL5/Python
-  bundle under local contracts.
-- `$codex-agentic-stack:understand-anything`: scoped graphs for unfamiliar work;
-  reuse fresh graphs, verify source and report gaps.
-- `$codex-agentic-stack:token-saver-orchestrator`: RTK-first, exact failure evidence.
-- `openai-docs`: Codex. No copied skills/hooks or plugin-cache edits.
+- On start/resume/compaction, read [task routes](docs/environment/mt5-agentic-workflows.md#task-routes)
+  and the current handoff; load only relevant guidance.
+- `planner` owns saved plans; use native short plans. Installed
+  `codex-agentic-stack` supplies bounded guidance search, scoped graphs, Token
+  Saver, Web QA and hooks. `openai-docs` owns Codex guidance.
+- Discover tools; planned plugins are not installed evidence.
+  No copied skills/hooks, cache edits or LLM trials for stack verification.
 - Planning/review grants no execution. Preserve scope, answers and pending
   questions in Planner state.
 - One agent/writer per worktree; delegate only if authorized. Stop on unexpected

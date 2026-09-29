@@ -6,6 +6,41 @@ gates. Runtime semantics belong to the [architecture](../architecture/market-dat
 research and source procedures belong to the [V14](../../tools/deterministic_signal_ml/README.md)
 and [Exness](../../tools/exness_tick_history/README.md) tool guides.
 
+## Task Routes
+
+At start, resume or compaction, read root AGENTS and the current index, restore the
+existing task/sprint handoff, then load only the matching route below. Preserve
+decisions, authority, pending questions, source/EX5 identity, validation, active
+job and next action. Do not reload retired plans or whole logs/catalogs. Record
+selected skills, tools and unavailable fallbacks in the existing evidence.
+
+| Task | Skill, plugin or tool route | Boundary |
+| --- | --- | --- |
+| Saved plan and continuation | Standalone `planner`; `codex-agentic-stack` lifecycle hooks | Restore current state; never revive archived/completed work. |
+| Requirements clarification | Native/Planner; `codex-agentic-stack:grill-me` when installed and requested | Find facts first; exhaustive questioning is opt-in. |
+| Source and shell evidence | `codex-agentic-stack:token-saver-orchestrator`, `rtk`, `rg`, local Git | Bound output and preserve exact diagnostics; no history rewrite. |
+| Guidance or unfamiliar modules | `codex-agentic-stack:on-demand-skills`, `codex-agentic-stack:understand-anything` | Bounded pinned retrieval; partial MQL5 graphs require source/include confirmation. |
+| Compiler evidence | MetaEditor MCP after `get_workspace_info`; documented MetaEditor64/Wine fallback | Follow compile policy; zero errors/warnings, matching regenerated EX5. |
+| Terminal/tester evidence | MT5 MCP after its `get_workspace_info` and live catalog discovery | Existing run scope; discovery/tool approval grants no trade or account authority. |
+| Offline contracts and source checks | Python and the existing tool-specific test commands; local Git | Deterministic checks; no model training or broad tester run from a docs change. |
+| Docs and remote state | Context7, `openai-docs`/OpenAI Docs MCP, authorized GitHub MCP | Native source/read-only HTTP fallback; local Git owns checkout/history. |
+| Interface work | `codex-ui-ux:ui-taste`/`codex-ui-ux:web-design-guidelines` when installed; standalone `web-design-guidelines` fallback if discovered | Web rules apply to web interfaces; native chart rendering/acceptance remains MT5-owned. |
+| Browser-only tooling | `codex-agentic-stack:token-efficient-web-qa` and an existing browser runner | Load only for web work; it does not validate EA charts or trading behavior. |
+
+Use the session's live skill/tool catalog and relevant local manifests. Check only
+needed CLIs; listed routes are not claims of a live service. React/native-mobile,
+asset generation and other integrations load only when the actual task warrants
+them. Optional missing tools have native fallbacks, not mandatory installation.
+
+`codex-ui-ux` and `grill-me` are agreed integrations, usable only when discovered;
+this document is not installation evidence. Their source belongs in the existing
+skills Git repository; this project receives documentation only. Prefer a discovered
+namespaced UX skill over its duplicate standalone installation. Restore this index
+and the existing handoff after compaction; do not assume an older active-plan-only
+hook restores task routes without a plan. A bounded hook reminder links guidance
+instead of loading the full catalog. Skill-stack verification uses deterministic
+metadata/link/budget/hook/discovery checks, never LLM trials or model calls.
+
 ## Codex And Artifact Ownership
 
 [AGENTS.md](../../AGENTS.md) routes tasks to installed skills. Standalone Planner
