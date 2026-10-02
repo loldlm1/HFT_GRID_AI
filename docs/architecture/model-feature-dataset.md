@@ -10,6 +10,12 @@ delivers the 2.10 profile pins, conditional proof and downstream selection rules
 Separate Pivot and Candle EAs retain their trading rules and publish immutable
 facts through shared data services. Feature availability never controls orders.
 
+The separate [sealed continuation candidate](../research/model-feature-continuation.md)
+uses a distinct exact inventory/descriptor and remains nonoperational. Its
+source/session mapping and pending-state replay never alter this complete-run wire.
+The scoped LOCAL_CUSTOM_TESTER proof binds native delivered callbacks with unknown
+historical source quality; LIVE_DEMO retains independent freshness/closure gates.
+
 ## Identities And Ownership
 
 - Family: `MQL5_MODEL_FEATURES`; core schema: `1`.

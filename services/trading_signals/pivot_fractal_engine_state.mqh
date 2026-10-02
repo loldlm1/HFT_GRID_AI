@@ -131,9 +131,16 @@ bool LoadCompletedPivotSourceRate(const string symbol,
   ArraySetAsSeries(source_rates, true);
   ResetLastError();
   int copied = CopyRates(symbol, timeframe, 1, 1, source_rates);
+  int copy_error = GetLastError();
+  if(g_cont_enabled)
+  {
+    string source = ModelInteger(active_bar_open) + "\t" + ModelInteger(copied) + "\t" + ModelInteger(copy_error);
+    if(copied == 1) source += "\t" + ModelContinuationRate(source_rates[0]);
+    ModelContinuationHistory("PIVOT_ENGINE_MACRO_SOURCE", source);
+  }
   if(copied != 1)
   {
-    error_out = GetLastError();
+    error_out = copy_error;
     reason_out = "COPY_PREVIOUS_RATE_FAILED";
     return false;
   }

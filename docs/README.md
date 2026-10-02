@@ -1,9 +1,47 @@
 # Current Project State
 
-Updated 2026-09-27. Common schema `1`: Pivot `2.10` / `PIVOT_MACRO_V2`;
+Updated 2026-10-02. Common schema `1`: Pivot `2.10` / `PIVOT_MACRO_V2`;
 Candle `2.10` / `CANDLE_PATTERN_ATR_V3`.
 This index owns changing status; guides own procedures and dated evidence keeps
 its original results.
+
+The opt-in [sealed continuation candidate](research/model-feature-continuation.md)
+has actual date-step and paired source proof under Q05 A and scoped technical
+acceptance delegation. Final11 proved original-anchor 2016-03-14→15 versus
+extended14→16 with eight native jobs. Final12 proved fresh latest-safe ordinary46
+witnesses for both engines: whole cold48 equals prefix46 plus two replay segments,
+including all causal inputs/history, immutable facts/births and full START+END
+state. Ordinary16 separately proves positive BROKER/VIRTUAL pending continuity
+(1/13 Pivot, 8/26 Candle) and 7/34 later CAPTURE outcomes. Terminal branches remain
+frozen. All jobs are stopped; no further native run is needed for this scope.
+
+Final12 source is `eff52334565416511d540fd4dbd739d6aa349ba709c2118452faf8c7f502ac30`;
+descriptor is `d29647a3f1f44fb72fde615d1ec0d358dafe0d6eef6ff150a0568cf90a1f22e4`.
+The 63 frozen files, actual catalogued native binaries and hidden build receipts
+are retained separately in ignored `build-final-candidate-12{,-native}/`.
+MetaEditor6230 optimized AVX2/FMA3 reports zero errors/warnings for both working
+targets; 64 focused tests pass in 22.870 seconds. The unchanged 95-case old-reader
+gate and final11 same-date MODE_OFF native evidence are reused with exact source
+difference and final12 whole-legacy/broker checks. Both cold/replay reports match
+every broker cell and all 43 statistics. Original EX5 and candidates02–11 remain
+unchanged. Twenty-nine actual-original offline refusals pass per engine.
+
+Two-day full exports are 14,468,391/15,180,389 bytes; latest46 suffix exports are
+346,237/378,104 bytes, a 97.607%/97.509% reduction. Local replay witnesses cost
+6,667,745/13,472,981 bytes and every update still pays full original-anchor CPU.
+Fact hex is exactly twice payload size. An existing legacy intake needs an actual
+whole-source bootstrap once; arbitrary next-date state restoration is unsupported.
+Five-year/maximum-state/isolated-overhead benchmarks, native crash/feed injection,
+LIVE_DEMO closure and external broker/all-tick completeness remain unproved.
+
+Source/native technical mechanisms pass; root final review and the atomic producer
+commit remain pending. Human-observed chart/tester verdict is unrecorded under the
+user's explicit technical delegation. The new family remains nonoperational:
+authenticated server-inbox native issuer/admission, database reconciliation and
+collector/demo/production activation are separate platform gates. The private
+source-owner to independent consumer original-pin handoff is QA only. Historical
+failed candidates retain their failure receipts; TESTER source quality is unknown
+and stale TIMER/quote-gap evidence remains explicit.
 
 The [entry-quality and lifecycle plan](../mql5-entry-quality-lifecycle-plan.md)
 is complete across five implementation sprints: `47556f9`, `7a5607e`, `eb816df`,

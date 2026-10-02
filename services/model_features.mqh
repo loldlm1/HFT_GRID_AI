@@ -6,12 +6,14 @@
 #include "model_features/schema.mqh"
 #include "model_features/clock.mqh"
 #include "model_features/types.mqh"
+#include "model_features/continuation.mqh"
 #include "model_features/export.mqh"
 #include "model_features/indicators.mqh"
 #include "model_features/pivot_context.mqh"
 #include "model_features/stochastic_structure.mqh"
 
 bool g_model_last_capture_complete = false;
+#include "model_features/continuation_shared_state.mqh"
 
 bool ModelInitialize(const ModelCaptureConfig &config)
 {

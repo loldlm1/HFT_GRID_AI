@@ -338,6 +338,20 @@ of TSV names does not establish a tiny workload. Keep synthetic tests tiny and
 staging workflows bounded to the selected cases. Source validation/intake does not
 authorize broad suites, historical model searches or production deployment.
 
+The [continuation candidate native recipe](../research/model-feature-continuation.md#bounded-native-acceptance-recipe)
+owns Q02 A/D17's one-day proof and Q05 A's actual bounded two-day LOCAL_CUSTOM_TESTER
+extension. Final11's eight jobs prove stable history-anchor/current dated receipt
+and changed-end replay; four accepted final12 jobs prove latest-safe ordinary46
+plus two suffix segments. Both actual native optimized builds have zero errors/
+warnings; 64 focused tests and final broker/whole-source parity pass. All jobs are
+stopped. The user delegated scoped technical acceptance choices; human-observed
+chart/tester verdict is unrecorded, with root review/commit still pending.
+The native owner binds original loaded INI/SET/report/journal, source, EX5, history
+and segment receipts; caller checksums cannot authenticate them. Operational
+server-inbox issuance/DB publication/live activation remain separate. Historical
+failures and old original receipts are retained without retagging. No demo/REAL,
+account/chart/collector activation or history import was performed.
+
 ## Documentation And Static Gate
 
 ```bash

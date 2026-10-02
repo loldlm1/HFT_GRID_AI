@@ -63,6 +63,33 @@ void ModelCloseWindow(const long terminal_time, const string status)
   if(ModelWrite(row)) g_model_window_written = true;
 }
 
+
+void ModelContinuationWindowBirth()
+{
+  if(!g_cont_enabled || !ModelReady()) return;
+  string row = g_model_window_id;
+  ModelCell(row, ModelInteger((long)g_model_macro_open * 1000));
+  ModelCell(row, g_model_source_available ? ModelInteger((long)g_model_macro_source.time * 1000) : MODEL_NULL);
+  ModelCell(row, g_model_source_available ? ModelInteger((long)g_model_macro_open * 1000) : MODEL_NULL);
+  ModelCell(row, ModelInteger(PeriodSeconds(g_model_config.macro)));
+  ModelCell(row, g_model_source_available ? ModelNumber(g_model_macro_source.open) : MODEL_NULL);
+  ModelCell(row, g_model_source_available ? ModelNumber(g_model_macro_source.high) : MODEL_NULL);
+  ModelCell(row, g_model_source_available ? ModelNumber(g_model_macro_source.low) : MODEL_NULL);
+  ModelCell(row, g_model_source_available ? ModelNumber(g_model_macro_source.close) : MODEL_NULL);
+  ModelCell(row, ModelBoolean(g_model_ladder.valid));
+  ModelCell(row, g_model_ladder.valid ? "OK" : g_model_window_reason);
+  string raw = "", trade = "";
+  for(int i = 0; i < 7; i++)
+  {
+    ModelCell(raw, g_model_ladder.valid ? ModelNumber(g_model_ladder.raw_prices[i]) : MODEL_NULL);
+    ModelCell(trade, g_model_ladder.valid ? ModelNumber(g_model_ladder.trade_prices[i]) : MODEL_NULL);
+  }
+  ModelCell(row, ModelContinuationHex(raw)); ModelCell(row, ModelContinuationHex(trade));
+  ModelCell(row, ModelInteger(g_model_window_first_time));
+  ModelCell(row, ModelNumber(g_model_window_first_bid));
+  if(!ModelContinuationBirth(row) && !g_model_failed) ModelFail("CONTINUATION_WINDOW_BIRTH");
+}
+
 void ModelRefreshContext(const MqlTick &tick, const long sequence)
 {
   if(!ModelReady()) return;
@@ -92,10 +119,12 @@ void ModelRefreshContext(const MqlTick &tick, const long sequence)
     if(g_model_source_available)
     {
       g_model_macro_source = source[0];
+      if(g_cont_enabled) ModelContinuationHistory("MACRO_SOURCE", ModelContinuationRate(source[0]));
       if(source[0].time >= bar_open) g_model_window_reason = "NON_CAUSAL_SOURCE";
       else if(!BuildClassicPivotPriceLadder(g_model_config.symbol, source[0], g_model_ladder, g_model_window_reason))
         g_model_ladder.valid = false;
     }
+    ModelContinuationWindowBirth();
   }
   if(!g_model_ladder.valid) return;
   double pp = g_model_ladder.trade_prices[3];

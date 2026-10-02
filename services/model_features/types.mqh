@@ -23,6 +23,15 @@ struct ModelCaptureConfig
   double reference_balance;
   int broker_cap;
   int virtual_cap;
+  bool continuation;
+  string source_id;
+  string session_id;
+  string source_proof;
+  string configuration_proof;
+  string history_proof;
+  int segment_seconds;
+  string replay_witness_id;
+  string replay_witness_proof;
 };
 
 ModelCaptureConfig g_model_config;

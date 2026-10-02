@@ -56,6 +56,7 @@ void ModelFail(const string reason)
 
 bool ModelFlush(const int file, const bool sealing = false)
 {
+  if(g_model_config.continuation) return !g_model_failed;
   int count = g_model_buffers[file].used;
   // Final sealing must recheck even tables whose last batch already flushed.
   if(count == 0 && !sealing) return true;
@@ -95,6 +96,14 @@ bool ModelWrite(ModelRow &row, const bool sealing = false)
   string text;
   if(!row.Serialize(text)) return false;
   int file = row.file;
+  if(g_model_config.continuation)
+  {
+    if(file == MODEL_RUN_MANIFEST || file == MODEL_RUN_SUMMARY)
+      ModelContinuationCoreMetadata(file, row.cells[0], row.cells[1]);
+    else if(!ModelContinuationFact(row, text)) return false;
+    g_model_rows[file]++;
+    return !g_model_failed;
+  }
   // Three UTF-8 bytes per UTF-16 code unit also bounds surrogate pairs.
   int capacity = 3 * StringLen(text) + 3;
   if((ArraySize(g_model_encode_scratch) < capacity && ArrayResize(g_model_encode_scratch, capacity) != capacity) ||
@@ -198,6 +207,7 @@ bool ModelOpen(const ModelCaptureConfig &config)
 {
   g_model_config = config;
   ArrayInitialize(g_model_rows, 0);
+  if(config.continuation && !config.enabled) { ModelFail("CONTINUATION_REQUIRES_CAPTURE"); return false; }
   if(!config.enabled) return true;
   if(!ModelRunIdValid(config.run_id) || !ModelInitLayouts() || !ModelCellValid(config.symbol))
   {
@@ -205,6 +215,12 @@ bool ModelOpen(const ModelCaptureConfig &config)
     return false;
   }
   string candidate = MODEL_STORAGE_ROOT + "\\runs\\" + config.run_id + "\\";
+  if(config.continuation)
+  {
+    if(!ModelContinuationOpen(config)) return false;
+  }
+  else
+  {
   string found;
   long search = FileFindFirst(candidate + "*", found, FILE_COMMON);
   if(search != INVALID_HANDLE)
@@ -222,6 +238,7 @@ bool ModelOpen(const ModelCaptureConfig &config)
     bool ok = ModelWriteBytes(handle, ModelHeader(file) + "\r\n");
     FileClose(handle);
     if(!ok) { ModelFail("INITIAL_HEADER_" + ModelFileName(file)); return false; }
+  }
   }
   g_model_open = true;
   bool candle = ModelEngineKind(config.engine) == "CANDLE";

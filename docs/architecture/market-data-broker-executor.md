@@ -32,6 +32,7 @@ same admission gate to fresh structural/broker entries and midpoint touches.
 | `+= Market Data Time =+` | `Broker_Session=FIXED_TIME_SESSIONS`, `Macro_Timeframe=PERIOD_H1`, `Micro_Timeframe=PERIOD_M3` |
 | `+= Broker Execution =+` | `Lot_Type=EXECUTION_LOT_REFERENCE_BALANCE_PERCENT`, `Lot_Strategy_Size=0.01` |
 | `+= Signal Statistics Export =+` | `Enable_Signal_Feature_Export=false`, `Signal_Feature_Run_Id=""` |
+| `+= Intake Continuation Export =+` | `Enable_Intake_Continuation=false`; source/session IDs, optional expected source/config pins, required verified history receipt, segment seconds 3600, optional replay witness ID/proof. See the [candidate continuation contract](../research/model-feature-continuation.md). |
 | `+= Developer Debug Settings =+` | `Enable_Logs=false`, `Enable_File_Logs=false` |
 
 `Lot_Strategy_Size` selects requested lots in fixed mode or percentage risk from

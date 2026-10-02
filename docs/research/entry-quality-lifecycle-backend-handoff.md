@@ -8,6 +8,11 @@ This supplement adds two producer profiles and a downstream selection contract.
 Backend implementation, intake performance acceptance and live rollout are not
 included. The [current index](../README.md) owns execution and human-review status.
 
+The [sealed continuation candidate](model-feature-continuation.md), begun
+2026-10-01, records separate scoped native paired proof on 2026-10-02. Human and
+operational gates remain in the current index. This handoff's dated archives,
+terminal facts and accepted pins retain their original scope.
+
 ## Selected Backend Datasets
 
 As requested on 2026-09-27, these are the only native run IDs selected for this

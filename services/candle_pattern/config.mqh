@@ -11,6 +11,7 @@ input double Lot_Strategy_Size = 0.01;
 input group "+= Signal Statistics Export =+"
 input bool Enable_Signal_Feature_Export = false;
 input string Signal_Feature_Run_Id = "";
+#include "../model_features/continuation_inputs.mqh"
 input group "+= Developer Debug =+"
 input bool Enable_Logs = false;
 
@@ -29,6 +30,7 @@ int g_micro_seconds = 0;
 long g_candle_sequence = 0;
 datetime g_last_micro_bar = 0;
 bool g_candle_stopping = false;
+bool g_candle_tester_interval_completed = false;
 
 string CandleDirection(const int direction) { return direction > 0 ? "BUY" : "SELL"; }
 string CandleCategory(const int pattern_direction, const int direction)

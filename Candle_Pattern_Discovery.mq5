@@ -11,6 +11,71 @@
 #include "services/candle_pattern/dataset_adapter.mqh"
 #include "services/candle_pattern/broker.mqh"
 #include "services/candle_pattern/engine.mqh"
+#include "services/candle_pattern/continuation_state.mqh"
+
+void CandleContinuationSnapshot(const string boundary)
+{
+  ModelContinuationBeginState(boundary);
+  SharedContinuationState();
+  CandleContinuationState();
+  ModelContinuationFinishState();
+}
+
+void CandleContinuationStart()
+{
+  if(ModelContinuationStart())
+  {
+    SharedContinuationState();
+    CandleContinuationState();
+    ModelContinuationFinishState();
+  }
+}
+
+void CandleContinuationAcquireAnchor(const string callback, const MqlTick &tick, const bool acquired)
+{
+  if(!ModelContinuationAnchor(callback, tick, acquired)) return;
+  SharedContinuationState();
+  CandleContinuationState();
+  ModelContinuationFinishState();
+}
+
+void CandleContinuationBoundary(const string callback)
+{
+  if(!ModelContinuationBoundaryDue(callback)) return;
+  if(!ModelContinuationFlushInput("BOUNDARY")) return;
+  CandleContinuationSnapshot("END");
+  if(ModelContinuationRotate())
+  {
+    SharedContinuationState();
+    CandleContinuationState();
+    ModelContinuationFinishState();
+  }
+}
+
+void CandleContinuationTerminalBegin()
+{
+  if(!g_cont_enabled || g_model_failed) return;
+  if(g_cont_anchor_pending) { ModelFail("CONTINUATION_STARTUP_NOT_REACHED"); return; }
+  if(g_cont_replaying) { ModelFail("CONTINUATION_PREFIX_NOT_REACHED"); return; }
+  if(!ModelContinuationFlushInput("BOUNDARY")) return;
+  CandleContinuationSnapshot("END");
+  if(!ModelContinuationSeal("PRE_FINALIZATION") || !ModelContinuationCreateSegment(true)) return;
+  CandleContinuationSnapshot("START");
+  g_cont_terminal = true;
+}
+
+void CandleContinuationTerminalEnd(const bool natural)
+{
+  if(!g_cont_enabled) return;
+  if(!g_model_failed)
+  {
+    CandleContinuationSnapshot("END");
+    ModelContinuationSeal(natural ? "TERMINAL" : "INTERRUPTED");
+  }
+  ModelContinuationRelease();
+}
+
+
 
 int OnInit()
 {
@@ -38,6 +103,7 @@ int OnInit()
   if(g_atr_handle == INVALID_HANDLE) return INIT_FAILED;
   if(!CandleDatasetInitialize() && MQLInfoInteger(MQL_TESTER)) return INIT_FAILED;
   g_last_micro_bar = iTime(_Symbol, Micro_Timeframe, 0);
+  CandleContinuationStart();
   if(!EventSetTimer(1))
   {
     ModelFail("TIMER_INITIALIZATION");
@@ -53,13 +119,18 @@ void OnTick()
 {
   if(g_candle_stopping) return;
   MqlTick tick;
-  if(!SymbolInfoTick(_Symbol, tick) || !CandleTickValid(tick)) return;
+  ZeroMemory(tick);
+  bool acquired = SymbolInfoTick(_Symbol, tick) && CandleTickValid(tick);
+  CandleContinuationAcquireAnchor("TICK", tick, acquired);
+  ModelContinuationInput("TICK", tick, g_candle_sequence, acquired);
+  if(!acquired) { CandleContinuationBoundary("TICK"); return; }
   g_candle_last_time = tick.time_msc;
   g_candle_sequence++;
   ModelObserve(tick, g_candle_sequence);
   CandleReconcile(tick);
   CandleResolveVirtuals(tick);
   CandleDiscover(tick);
+  CandleContinuationBoundary("TICK");
   ModelBoundary();
 }
 
@@ -67,11 +138,16 @@ void OnTimer()
 {
   if(g_candle_stopping) return;
   MqlTick tick;
-  if(!SymbolInfoTick(_Symbol, tick) || !CandleTickValid(tick)) return;
+  ZeroMemory(tick);
+  bool acquired = SymbolInfoTick(_Symbol, tick) && CandleTickValid(tick);
+  CandleContinuationAcquireAnchor("TIMER", tick, acquired);
+  ModelContinuationInput("TIMER", tick, g_candle_sequence, acquired);
+  if(!acquired) { CandleContinuationBoundary("TIMER"); return; }
   g_candle_last_time = tick.time_msc;
   g_candle_sequence++;
   ModelObserve(tick, g_candle_sequence);
   CandleReconcile(tick);
+  CandleContinuationBoundary("TIMER");
   ModelBoundary();
 }
 
@@ -80,7 +156,11 @@ void OnTradeTransaction(const MqlTradeTransaction &transaction,
 {
   if(g_candle_stopping || transaction.symbol != _Symbol) return;
   MqlTick tick;
-  if(!SymbolInfoTick(_Symbol, tick) || !CandleTickValid(tick)) return;
+  ZeroMemory(tick);
+  bool acquired = SymbolInfoTick(_Symbol, tick) && CandleTickValid(tick);
+  CandleContinuationAcquireAnchor("TRADE", tick, acquired);
+  if(g_cont_enabled) ModelContinuationInput("TRADE", tick, g_candle_sequence, acquired, ModelContinuationTransaction(transaction, request, result));
+  if(!acquired) { CandleContinuationBoundary("TRADE"); return; }
   g_candle_last_time = tick.time_msc;
   g_candle_sequence++;
   if(transaction.type == TRADE_TRANSACTION_REQUEST && result.request_id > 0)
@@ -94,11 +174,13 @@ void OnTradeTransaction(const MqlTradeTransaction &transaction,
   }
   ModelObserve(tick, g_candle_sequence);
   CandleReconcile(tick);
+  CandleContinuationBoundary("TRADE");
   ModelBoundary();
 }
 
 double OnTester()
 {
+  g_candle_tester_interval_completed = true;
   CandleFinish();
   return g_model_failed ? 0.0 : TesterStatistics(STAT_PROFIT);
 }
@@ -106,7 +188,7 @@ double OnTester()
 void OnDeinit(const int reason)
 {
   EventKillTimer();
-  if(!g_candle_stopping) ModelFail("DEINITIALIZED_" + ModelInteger(reason));
+  if(!g_candle_stopping && !g_model_config.continuation) ModelFail("DEINITIALIZED_" + ModelInteger(reason));
   CandleFinish();
   if(g_atr_handle != INVALID_HANDLE && !IndicatorRelease(g_atr_handle)) Print("CANDLE_EXECUTION_ATR_RELEASE_FAILED");
   g_atr_handle = INVALID_HANDLE;

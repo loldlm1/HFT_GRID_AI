@@ -181,6 +181,11 @@ bool ModelCaptureIndicators(ModelRow &row, const int slot, const MqlTick &tick,
       row.Number(MODEL_ROLE_ATR_13_SMA_5[column], total / 5.0);
     }
   }
+  if(g_cont_enabled)
+    for(int source = 0; source < 10; source++)
+      ModelContinuationHistory(role + "_INDICATORS", ModelContinuationRate(rates[9 - source]) +
+        "\t" + ModelContinuationNumber(lower[source]) + "\t" + ModelContinuationNumber(upper[source]) +
+        "\t" + ModelContinuationNumber(k[source]) + "\t" + ModelContinuationNumber(d[source]) + "\t" + ModelContinuationNumber(atr[source]));
   bool complete = bands_ok && stochastic_ok && atr_ok;
   row.Flag(MODEL_ROLE_COMPLETE[slot], complete);
   row.Flag(MODEL_ROLE_STOCHASTIC_COMPLETE[slot], stochastic_ok);

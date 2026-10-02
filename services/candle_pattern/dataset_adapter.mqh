@@ -16,6 +16,15 @@ bool CandleDatasetInitialize()
   config.lot_type = EnumToString(Lot_Type);
   config.lot_size = Lot_Strategy_Size;
   config.reference_balance = PIVOT_EXECUTION_REFERENCE_BALANCE;
+  config.continuation = Enable_Intake_Continuation;
+  config.source_id = Intake_Source_Id;
+  config.session_id = Intake_Session_Id;
+  config.source_proof = Intake_Source_Proof;
+  config.configuration_proof = Intake_Configuration_Proof;
+  config.history_proof = Intake_History_Proof;
+  config.segment_seconds = Intake_Segment_Seconds;
+  config.replay_witness_id = Intake_Replay_Witness_Id;
+  config.replay_witness_proof = Intake_Replay_Witness_Proof;
   config.broker_cap = CANDLE_BROKER_CAP;
   config.virtual_cap = CANDLE_VIRTUAL_CAP;
   return ModelInitialize(config);

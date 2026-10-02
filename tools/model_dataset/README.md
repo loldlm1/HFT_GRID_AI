@@ -81,3 +81,62 @@ The backend retains its own typed bounded PostgreSQL intake and full READY check
 Historical Pivot V14 and Candle 1/2/3 sources continue to use their existing local
 readers. This package cannot read those older datasets under new semantics.
 Django intake and chart/full-history/broker-feed acceptance remain separate.
+
+## Sealed Continuation Candidate
+
+The distinct [continuation owner](../../docs/research/model-feature-continuation.md)
+defines the nonoperational six-file family, generated state registry, bounded
+callback blocks and native acceptance requirements. Existing ModelRun dispatch
+stays exact. Generate/check the separate contract before both EA builds:
+
+```bash
+.venv/bin/python -m tools.model_dataset.continuation_contract --write-generated
+.venv/bin/python -m tools.model_dataset.continuation_contract --check-generated --write-json .codex-artifacts/intake-continuation/descriptor-candidate.json
+.venv/bin/python -m tools.model_dataset.continuation_reader "$CONTINUATION_SEGMENT_PATH" --report "$CONTINUATION_REPORT_PATH"
+```
+
+`ContinuationArchive` validates immutable source segments with bounded disk
+indexes. Its read-only CLI cannot manufacture replay acceptance. TESTER archives require
+an injected trusted `NativeJobRegistry` and `authenticate_tester_delivery` from
+original native jobs; the CLI supplies no registry and fails closed for TESTER.
+Caller JSON, checksums, flags and direct/unissued proof objects are refused.
+`compare_legacy_whole` compares the actual complete old archive, including
+retained terminal facts; `bootstrap_witness` selects an actual earlier ROTATED
+prefix only after whole comparison and a trusted `VerifiedNativeFence` receipt
+bound to its factory-issued native delivery proof.
+`build_witness` also requires that independently audited fence. A caller-supplied
+hash or label does not certify source/feed/closure/fence authenticity. Source
+replay checks the complete causal prefix and pre-finalization state before
+suppressing proven ordinals. It still executes full history CPU.
+
+Offline cases cover both typed profiles, pending references, exact per-object
+state/health, active-gap refusal, externally evidenced closure, terminal-phase
+separation and legacy/bootstrap mutations. They do not establish native pending
+broker-state continuation, acquisition completeness or production intake.
+
+Final10's exact one-day local-custom native cold/paired proof is recorded in the
+linked owner: full canonical input/fact/birth/START+END state equality, actual
+pending broker/virtual fence and late old-entry outcomes. TESTER START is the first
+acquired delivered TICK before input/dispatch; TIMER/TRADE-first and missing quote
+reject the run, while LIVE_DEMO keeps OnInit START. TESTER stale TIMER quotes retain
+raw evidence with unknown historical source quality. Missing/stale TICK/TRADE,
+changed native config/source/EX5/history, failed natural completion, omitted or
+corrupt bytes and unregistered receipts reject. The family remains nonoperational. Human-observed chart/tester verdict is
+unrecorded; the user delegated scoped technical acceptance choices.
+
+Final11's TESTER history proof pins the immutable original registered anchor;
+each actual job also needs a separately registered `NATIVE_PHYSICAL_JOB_HISTORY_V1`
+receipt binding its current dates/job/source/config/spec. The factory verifies and
+rechecks both originals. Same from-date/nonshrinking end and full consumed-prefix
+state equality permit date growth; source/session/config/spec substitution rejects.
+Observation-pin strings are informational within the trusted whole receipt, never
+independent authentication. Q05 A's eight final11 native jobs prove actual changed-end prefix/state/fact
+continuation. Final12's four accepted successor jobs prove latest-safe ordinary46
+plus two emitted suffix segments, with separately positive ordinary16 pending
+broker/virtual proof. All 64 focused tests and both actual native optimized
+zero-warning builds pass; 29 actual-original offline refusals pass per engine.
+Full replay CPU and material witness/hex/state costs are measured in the linked
+owner. No arbitrary next-date state restoration or full-history speed claim is made.
+The tested private source-owner original-pin handoff is QA only; authenticated
+operational server-inbox issuance, DB publication and live/collector activation
+remain separate. Staff uploads/caller checksums cannot create native authority.

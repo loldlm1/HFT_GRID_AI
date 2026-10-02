@@ -15,6 +15,13 @@ owns exact fields and behavior; the [project index](../README.md) owns current
 acceptance status. No Django repository, importer, migration, API, discovery
 program or deployment was changed or certified by this refactor.
 
+The [sealed continuation candidate](model-feature-continuation.md), begun
+2026-10-01, records actual original-anchor/date-step and latest-safe paired proof on
+2026-10-02. The user delegated scoped technical acceptance choices; human-observed
+chart/tester verdict is unrecorded. Final review/commit and operational gates
+remain in the current index. This handoff's dated archives,
+terminal facts and accepted pins retain their original scope.
+
 ## Version And Source Pins
 
 | Identity | Accepted value |

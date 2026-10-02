@@ -18,6 +18,10 @@ void CandleEnter(const string root_id, const string pattern, const int pattern_d
   double atr_current = EMPTY_VALUE, atr_completed = EMPTY_VALUE;
   datetime atr_source = 0;
   bool atr_available = CandleAtr(atr_current, atr_completed, atr_source, tick.time);
+  if(g_cont_enabled)
+    ModelContinuationHistory("CANDLE_EXECUTION_ATR",
+      ModelBoolean(atr_available) + "\t" + ModelInteger(atr_source) + "\t" +
+      ModelContinuationNumber(atr_current) + "\t" + ModelContinuationNumber(atr_completed));
   if(!atr_available) atr_completed = EMPTY_VALUE;
   CandleDatasetAttempt(attempt, tick, atr_current, atr_completed, atr_source);
   CandleSubmit(attempt, tick, atr_completed);
@@ -105,7 +109,15 @@ void CandleDiscover(const MqlTick &tick)
   if(g_last_micro_bar == 0) { g_last_micro_bar = current_bar; return; }
   MqlRates candles[2];
   // CopyRates places shift 2 first and the completed signal candle (shift 1) second.
-  if(CopyRates(_Symbol, Micro_Timeframe, 1, 2, candles) != 2 ||
+  int copied = CopyRates(_Symbol, Micro_Timeframe, 1, 2, candles);
+  if(g_cont_enabled)
+  {
+    string source = ModelInteger(current_bar) + "\t" + ModelInteger(copied);
+    if(copied > 0) source += "\t" + ModelContinuationRate(candles[0]);
+    if(copied > 1) source += "\t" + ModelContinuationRate(candles[1]);
+    ModelContinuationHistory("CANDLE_PATTERN_SOURCE", source);
+  }
+  if(copied != 2 ||
      candles[0].time >= candles[1].time || candles[1].time >= current_bar) return;
   g_last_micro_bar = current_bar;
   string pattern;
@@ -119,9 +131,13 @@ void CandleDiscover(const MqlTick &tick)
   CandleEnter(root_id, pattern, direction, -direction, 0, "", tick);
 }
 
+void CandleContinuationTerminalBegin();
+void CandleContinuationTerminalEnd(const bool natural);
+
 void CandleFinish()
 {
   if(g_candle_stopping) return;
+  CandleContinuationTerminalBegin();
   g_candle_stopping = true;
   MqlTick tick;
   if(!SymbolInfoTick(_Symbol, tick) || !CandleTickValid(tick))
@@ -142,6 +158,7 @@ void CandleFinish()
                   record.volume, EMPTY_VALUE, EMPTY_VALUE, record.position_id, record.reference_entry);
   }
   ModelSeal(g_candle_broker_peak, g_candle_virtual_peak);
+  CandleContinuationTerminalEnd(g_candle_tester_interval_completed);
 }
 
 #endif

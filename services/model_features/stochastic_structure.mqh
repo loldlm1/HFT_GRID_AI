@@ -112,6 +112,8 @@ bool ModelCommitStructure(const MqlRates &source, const double k, const datetime
 {
   ModelStructurePivot pivot;
   if(!ModelStructureAdvance(g_model_structure, source.time, confirmed_at, source.close, k, pivot)) return false;
+  if(g_cont_enabled) ModelContinuationHistory(warmup ? "M1_WARMUP" : "M1_CONFIRMED",
+    ModelContinuationRate(source) + "\t" + ModelContinuationNumber(k) + "\t" + ModelInteger(confirmed_at));
   if(pivot.kind != 0)
   {
     g_model_confirmed_event = pivot;
@@ -226,6 +228,7 @@ void ModelUpdateStructure(const MqlTick &tick)
     {
       if(calculated - (start + count - 1 - i) <= 8)
       {
+        if(g_cont_enabled) ModelContinuationHistory("M1_UNREADY", ModelContinuationRate(source[i]) + "\t" + ModelContinuationNumber(k[i]));
         g_model_structure_cursor = source[i].time;
         g_model_structure_last_k = EMPTY_VALUE;
         continue;

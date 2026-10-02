@@ -22,6 +22,7 @@ input double            Lot_Strategy_Size = 0.01;
 input group  "+= Signal Statistics Export =+";
 input bool   Enable_Signal_Feature_Export = false;
 input string Signal_Feature_Run_Id        = "";
+#include "../model_features/continuation_inputs.mqh"
 
 input group  "+= Developer Debug Settings =+";
 input bool Enable_Logs              = false;

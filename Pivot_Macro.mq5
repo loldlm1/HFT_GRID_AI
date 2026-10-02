@@ -21,6 +21,71 @@ SymbolTradingConstraints g_symbol_constraints;
 bool g_tester_interval_completed = false;
 bool g_pivot_run_finalized = false;
 int g_pivot_macro_seconds = 0;
+#include "services/trading_signals/pivot_continuation_state.mqh"
+
+void PivotContinuationSnapshot(const string boundary)
+{
+  ModelContinuationBeginState(boundary);
+  SharedContinuationState();
+  PivotContinuationState();
+  ModelContinuationFinishState();
+}
+
+void PivotContinuationStart()
+{
+  if(ModelContinuationStart())
+  {
+    SharedContinuationState();
+    PivotContinuationState();
+    ModelContinuationFinishState();
+  }
+}
+
+void PivotContinuationAcquireAnchor(const string callback, const MqlTick &tick, const bool acquired)
+{
+  if(!ModelContinuationAnchor(callback, tick, acquired)) return;
+  SharedContinuationState();
+  PivotContinuationState();
+  ModelContinuationFinishState();
+}
+
+void PivotContinuationBoundary(const string callback)
+{
+  if(!ModelContinuationBoundaryDue(callback)) return;
+  if(!ModelContinuationFlushInput("BOUNDARY")) return;
+  PivotContinuationSnapshot("END");
+  if(ModelContinuationRotate())
+  {
+    SharedContinuationState();
+    PivotContinuationState();
+    ModelContinuationFinishState();
+  }
+}
+
+void PivotContinuationTerminalBegin()
+{
+  if(!g_cont_enabled || g_model_failed) return;
+  if(g_cont_anchor_pending) { ModelFail("CONTINUATION_STARTUP_NOT_REACHED"); return; }
+  if(g_cont_replaying) { ModelFail("CONTINUATION_PREFIX_NOT_REACHED"); return; }
+  if(!ModelContinuationFlushInput("BOUNDARY")) return;
+  PivotContinuationSnapshot("END");
+  if(!ModelContinuationSeal("PRE_FINALIZATION") || !ModelContinuationCreateSegment(true)) return;
+  PivotContinuationSnapshot("START");
+  g_cont_terminal = true;
+}
+
+void PivotContinuationTerminalEnd(const bool natural)
+{
+  if(!g_cont_enabled) return;
+  if(!g_model_failed)
+  {
+    PivotContinuationSnapshot("END");
+    ModelContinuationSeal(natural ? "TERMINAL" : "INTERRUPTED");
+  }
+  ModelContinuationRelease();
+}
+
+
 
 ulong ResolveStableExecutionMagic()
 {
@@ -205,6 +270,7 @@ int OnInit()
   InitializePivotBrokerOwnershipBoundary();
   RefreshCustomSymbolRates();
   HandlePivotResearchFailureAtEventBoundary(false);
+  PivotContinuationStart();
 
   ResetExecutionVisualizationCache();
   FrontendResetRefreshThrottle();
@@ -225,6 +291,7 @@ void FinalizePivotRunExport()
 {
   if(g_pivot_run_finalized)
     return;
+  PivotContinuationTerminalBegin();
   g_pivot_run_finalized = true;
   ReconcileAndFinalizePivotSignals();
   if(ModelReady() && ArraySize(g_pivot_deferred_closes) > 0)
@@ -243,6 +310,7 @@ void FinalizePivotRunExport()
     FinalizeActivePivotWindowsForExport();
   HandlePivotResearchFailureAtEventBoundary(false);
   ModelSeal(g_pivot_dataset_broker_peak, PivotTrialActiveStatePeak(), PivotRunCompletionStatus());
+  PivotContinuationTerminalEnd(g_tester_interval_completed);
   HandlePivotResearchFailureAtEventBoundary(false);
 }
 
@@ -270,8 +338,12 @@ void OnTradeTransaction(const MqlTradeTransaction &trans,
                         const MqlTradeResult &result)
 {
   MqlTick tick;
-  if(RefreshCustomSymbolRates(tick) && tick.time_msc > 0) ModelObserve(tick, g_model_sequence + 1);
+  bool acquired = RefreshCustomSymbolRates(tick) && tick.time_msc > 0;
+  PivotContinuationAcquireAnchor("TRADE", tick, acquired);
+  if(g_cont_enabled) ModelContinuationInput("TRADE", tick, g_model_sequence, acquired, ModelContinuationTransaction(trans, request, result));
+  if(acquired) ModelObserve(tick, g_model_sequence + 1);
   ProcessPivotSignalLifecycle(tick);
+  PivotContinuationBoundary("TRADE");
   HandlePivotResearchFailureAtEventBoundary();
 }
 
@@ -279,13 +351,17 @@ void OnTimer()
 {
   if(g_pivot_run_finalized) return;
   MqlTick tick;
-  if(!RefreshCustomSymbolRates(tick) || !PivotTrialQuoteValid(tick) || tick.time_msc <= 0) return;
+  bool acquired = RefreshCustomSymbolRates(tick) && PivotTrialQuoteValid(tick) && tick.time_msc > 0;
+  PivotContinuationAcquireAnchor("TIMER", tick, acquired);
+  ModelContinuationInput("TIMER", tick, g_model_sequence, acquired);
+  if(!acquired) { PivotContinuationBoundary("TIMER"); return; }
   // Lifecycle clock only: timer callbacks cannot discover origins or capture features.
   if(g_model_first_time == 0) g_model_first_time = tick.time_msc;
   if(tick.time_msc >= g_model_last_time) g_model_last_time = tick.time_msc;
   g_model_sequence++;
   ProcessPivotSignalLifecycle(tick);
   ProcessPivotTrialLanesTick(tick, true);
+  PivotContinuationBoundary("TIMER");
   HandlePivotResearchFailureAtEventBoundary();
 }
 
@@ -293,9 +369,12 @@ void OnTick()
 {
   MqlTick tick;
   RefreshCustomSymbolRates(tick);
+  PivotContinuationAcquireAnchor("TICK", tick, PivotTrialQuoteValid(tick) && tick.time_msc > 0);
+  ModelContinuationInput("TICK", tick, g_model_sequence, PivotTrialQuoteValid(tick) && tick.time_msc > 0);
   if(tick.time_msc > 0) ModelObserve(tick, g_model_sequence + 1);
   if(!DebugEquityGuardAllowsProcessing())
   {
+    PivotContinuationBoundary("TICK");
     HandlePivotResearchFailureAtEventBoundary();
     return;
   }
@@ -309,6 +388,7 @@ void OnTick()
   datetime current_time = TimeCurrent();
   if(FrontendRefreshDue(current_time))
     RefreshExecutionVisualization();
+  PivotContinuationBoundary("TICK");
   HandlePivotResearchFailureAtEventBoundary();
 }
 
